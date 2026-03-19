@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>dbt_ai_assistant</title>
+  <style>
+    :root {
+      --bg: #1e1e1e;
+      --bg2: #181818;
+      --panel: #252526;
+      --border: #3c3c3c;
+      --text: #d4d4d4;
+      --muted: #9da0a6;
+      --accent2: #3794ff;
+      --green: #4ec9b0;
+      --yellow: #dcdcaa;
+      --orange: #ce9178;
+      --purple: #c586c0;
+      --blue: #569cd6;
+      --shadow: 0 8px 24px rgba(0,0,0,.28);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: Inter, Segoe UI, Arial, sans-serif; }
+    body { overflow: hidden; }
+    .app { display: grid; grid-template-rows: 38px 1fr; height: 100vh; }
+    .topbar {
+      display: grid; grid-template-columns: 56px 1fr 360px; align-items: center; gap: 12px;
+      padding: 0 12px; background: var(--bg2); border-bottom: 1px solid var(--border); font-size: 12px;
+    }
+    .traffic { display: flex; gap: 6px; align-items: center; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot.red { background:#ff5f56; } .dot.yellow { background:#ffbd2e; } .dot.green { background:#27c93f; }
+    .titlebar { display: flex; align-items: center; gap: 10px; color: var(--muted); min-width: 0; }
+    .title-pill { background: #202020; border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .demo-badge { justify-self: end; background: rgba(55,148,255,.12); border: 1px solid rgba(55,148,255,.35); color: #9cc7ff; padding: 6px 10px; border-radius: 999px; font-size: 11px; }
+
+    .workspace { display: grid; grid-template-columns: 72px 320px minmax(560px,1fr) 420px; min-height: 0; }
+    .activitybar {
+      background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column;
+      align-items: center; padding-top: 10px; gap: 8px;
+    }
+    .activity-btn { width: 48px; height: 48px; border-radius: 10px; display: grid; place-items: center; color: var(--muted); cursor: pointer; border-left: 2px solid transparent; }
+    .activity-btn.active { color: #fff; background: #202020; border-left-color: var(--accent2); }
+
+    .left-panel {
+      background: var(--panel); border-right: 1px solid var(--border); display: grid;
+      grid-template-rows: auto auto auto 1fr auto; min-height: 0;
+    }
+    .left-header, .right-header {
+      padding: 12px 14px 8px; text-transform: uppercase; font-size: 11px; letter-spacing: 1px;
+      color: var(--muted); display: flex; justify-content: space-between; align-items: center;
+    }
+    .toggle-row { display: flex; gap: 8px; padding: 0 12px 10px; }
+    .toggle-btn {
+      flex: 1; border: 1px solid var(--border); background: #1f1f1f; color: var(--muted); padding: 8px 10px;
+      border-radius: 8px; cursor: pointer; font-size: 12px;
+    }
+    .toggle-btn.active { color: #fff; border-color: var(--accent2); background: rgba(55,148,255,.12); }
+    .search {
+      margin: 0 12px 10px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+      background: #1f1f1f; color: var(--text); outline: none; font-size: 12px;
+    }
+    .left-scroll, .copilot-scroll, .editor-region, .code-wrap, .bottom-content { min-height: 0; }
+    .left-scroll { overflow: auto; padding-bottom: 10px; }
+    .section-title {
+      padding: 8px 14px; font-size: 11px; letter-spacing: .8px; color: var(--muted); border-top: 1px solid var(--border);
+      text-transform: uppercase; display: flex; justify-content: space-between; align-items: center; background: #202020;
+      position: sticky; top: 0; z-index: 2;
+    }
+    .tree-row {
+      display: flex; align-items: center; gap: 8px; padding: 5px 12px; font-size: 12px; cursor: pointer; white-space: nowrap;
+    }
+    .tree-row:hover { background: #2a2d2e; }
+    .tree-row.active { background: rgba(55,148,255,.18); }
+    .tree-row .caret { width: 10px; color: var(--muted); }
+    .tree-row .label { overflow: hidden; text-overflow: ellipsis; }
+    .indent-0 { padding-left: 12px; } .indent-1 { padding-left: 26px; } .indent-2 { padding-left: 40px; } .indent-3 { padding-left: 54px; } .indent-4 { padding-left: 68px; } .indent-5 { padding-left: 82px; }
+    .icon-folder { color: #d7ba7d; } .icon-sql { color: #4fc1ff; } .icon-yml { color: #ce9178; } .icon-md { color: #c586c0; }
+
+    .ai-func-list { padding: 4px 10px 16px; display: grid; gap: 8px; }
+    .func-card {
+      background: linear-gradient(180deg, #2b2b2d 0%, #262628 100%); border: 1px solid var(--border); border-radius: 12px;
+      padding: 10px; box-shadow: var(--shadow); cursor: pointer;
+    }
+    .func-card:hover { border-color: rgba(55,148,255,.45); }
+    .func-title { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: #fff; }
+    .func-desc { margin-top: 6px; font-size: 11px; color: var(--muted); line-height: 1.45; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; font-size: 11px;
+      border: 1px solid var(--border); background: #232325; color: var(--text);
+    }
+    .pill.good { color: var(--green); }
+    .left-footer { padding: 10px 14px; border-top: 1px solid var(--border); font-size: 11px; color: var(--muted); background: #202020; }
+
+    .center-column { display: grid; grid-template-rows: minmax(0,1fr) 180px; min-height: 0; min-width: 0; }
+    .editor-region { display: grid; grid-template-rows: auto auto 1fr; min-width: 0; min-height: 0; }
+    .tabs { display: flex; gap: 1px; overflow-x: auto; background: #1b1b1b; border-bottom: 1px solid var(--border); }
+    .tab {
+      display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 12px; color: var(--muted);
+      background: #2a2a2a; border-top: 2px solid transparent; cursor: pointer; white-space: nowrap;
+    }
+    .tab.active { color: #fff; background: #1f1f1f; border-top-color: var(--accent2); }
+    .tab .close { opacity: .6; font-size: 11px; padding: 2px 4px; border-radius: 4px; }
+    .tab .close:hover { background: rgba(255,255,255,.08); opacity: 1; }
+    .breadcrumb {
+      display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border);
+      background: var(--panel); font-size: 12px; color: var(--muted); overflow-x: auto; white-space: nowrap;
+    }
+    .crumb.active { color: var(--text); }
+    .code-wrap { display: grid; grid-template-columns: 56px 1fr; min-height: 0; overflow: hidden; }
+    .gutter, .code {
+      overflow: auto; padding-top: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px; line-height: 22px;
+    }
+    .gutter { background: #1b1b1b; color: #6e7681; text-align: right; padding-right: 12px; border-right: 1px solid var(--border); }
+    .code { padding-left: 16px; padding-right: 24px; white-space: pre; color: var(--text); background: #1e1e1e; }
+    .line { height: 22px; }
+    .kw { color: var(--purple); } .fn { color: var(--yellow); } .str { color: var(--orange); } .cm { color: #6a9955; } .name { color: var(--blue); }
+
+    .bottom-panel { background: #181818; border-top: 1px solid var(--border); display: grid; grid-template-rows: 38px 1fr; min-height: 0; }
+    .bottom-tabs { display: flex; gap: 1px; background: #111; border-bottom: 1px solid var(--border); }
+    .bottom-tab { padding: 10px 14px; font-size: 12px; color: var(--muted); cursor: pointer; background: #202020; }
+    .bottom-tab.active { color: #fff; background: #1b1b1b; }
+    .bottom-content {
+      overflow: auto; padding: 14px 16px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px; line-height: 20px; white-space: pre-wrap; color: var(--text);
+    }
+
+    .right-panel { background: var(--panel); border-left: 1px solid var(--border); display: grid; grid-template-rows: auto auto 1fr auto; min-height: 0; min-width: 0; }
+    .copilot-meta { padding: 0 12px 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+    .copilot-scroll { overflow: auto; padding: 0 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+    .chat { background: linear-gradient(180deg, #2b2b2d 0%, #262628 100%); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); }
+    .chat-header {
+      padding: 10px 12px; border-bottom: 1px solid #00000022; display: flex; align-items: center; justify-content: space-between; font-size: 12px;
+    }
+    .chat-body { padding: 12px; font-size: 12px; }
+    .msg { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; background: #212123; line-height: 1.5; }
+    .msg.dev { border-left: 3px solid var(--accent2); } .msg.agent { border-left: 3px solid var(--green); }
+    .msg .who { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+    .refs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .widget-proof { display: grid; gap: 8px; }
+    .proof-item { background: #1f1f21; border: 1px solid var(--border); border-radius: 10px; padding: 10px; font-size: 12px; }
+    .proof-item .label { color: var(--muted); font-size: 11px; margin-bottom: 4px; }
+    .copilot-input { border-top: 1px solid var(--border); padding: 12px; background: #202020; }
+    .input-box { border: 1px solid var(--border); background: #1f1f1f; border-radius: 10px; padding: 10px 12px; font-size: 12px; color: var(--muted); }
+    .spinner { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
+    .spinner i { width: 10px; height: 10px; border: 2px solid #555; border-top-color: var(--accent2); border-radius: 50%; animation: spin .9s linear infinite; display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .tiny { font-size: 11px; color: var(--muted); }
+    .muted { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="traffic"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></div>
+      <div class="titlebar">
+        <span class="muted">dbt_ai_assistant</span>
+        <span class="title-pill" id="activeTitle">semantic/models/mma/mma_party_insured.sql</span>
+      </div>
+      <div class="demo-badge">GitHub Copilot Extension Prototype · Demo Mode</div>
+    </div>
+
+    <div class="workspace">
+      <div class="activitybar">
+        <div class="activity-btn active">📁</div>
+        <div class="activity-btn">🔎</div>
+        <div class="activity-btn">🌿</div>
+        <div class="activity-btn">🧪</div>
+        <div class="activity-btn">⚙️</div>
+      </div>
+
+      <div class="left-panel">
+        <div class="left-header"><span>Sidebar</span><span class="tiny">Toggle view</span></div>
+        <div class="toggle-row">
+          <button class="toggle-btn active" id="explorerToggle">Explorer</button>
+          <button class="toggle-btn" id="functionsToggle">AI Functions</button>
+        </div>
+        <input class="search" id="searchInput" placeholder="Filter files, folders, or functions" />
+        <div class="left-scroll" id="leftScroll"></div>
+        <div class="left-footer">Full file explorer on one side · Scrollable AI capabilities on demand</div>
+      </div>
+
+      <div class="center-column">
+        <div class="editor-region">
+          <div class="tabs" id="tabs"></div>
+          <div class="breadcrumb" id="breadcrumb"></div>
+          <div class="code-wrap">
+            <div class="gutter" id="gutter"></div>
+            <div class="code" id="code"></div>
+          </div>
+        </div>
+
+        <div class="bottom-panel">
+          <div class="bottom-tabs" id="bottomTabs"></div>
+          <div class="bottom-content" id="bottomContent"></div>
+        </div>
+      </div>
+
+      <div class="right-panel">
+        <div class="right-header"><span>GitHub Copilot</span><span class="spinner" id="copilotSpinner"><i></i> context syncing...</span></div>
+        <div class="copilot-meta" id="copilotMeta"></div>
+        <div class="copilot-scroll" id="copilotScroll"></div>
+        <div class="copilot-input">
+          <div class="input-box" id="inputBox">Ask Copilot to analyze the active model, inspect extension widgets, or continue the D1–D6 workflow…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const files = {
+      "semantic/models/mma/mma_party_insured.sql": {
+        type: "sql",
+        title: "mma_party_insured.sql",
+        breadcrumb: ["semantic", "models", "mma", "mma_party_insured.sql"],
+        content: "SELECT\n    v_d_ax_party_insured.`party_insured_id`\n  , v_d_ax_party_insured.`party_insured_key`\n  , `insured_ultimate_client_selected_ind`\n  , v_d_ax_party_insured.`Insured`\n  , `Insured DUNS Number`\n  -- `Insured Pseudo DUNS Number`\n  , v_d_ax_party_insured.`Insured City`\n\n  , CASE WHEN v_d_ax_party_insured.insured_data_source_ind = 'Local'\n    THEN v_d_ax_party_insured.`Insured State`\n  END AS `Insured State`\n\n  , CASE WHEN v_d_ax_party_insured.insured_data_source_ind = 'Local'\n    THEN v_d_ax_party_insured_1.insured_ctry\n  END AS `Insured Country`\n\n  , v_d_ax_party_insured.`Insured Group`\n  , v_d_ax_party_insured.`Ultimate Client`\n  , v_d_ax_party_insured.insured_static_nme_cd AS `Insured Static Name Code`\n\nFROM {{ source('shared_object', 'v_d_ax_party_insured') }} AS v_d_ax_party_insured",
+        copilot: {
+          developer: "Review this semantic model, but also tell me whether the extension should surface Build Predictor, Architecture Guidance, and Source Metrics for it.",
+          agent: "Yes — I can see your extension is exposing Build Predictor, Source Metrics, and Architecture Guidance widgets for the active file. For this model, the Architecture Guidance widget should classify it as a thin semantic exposure, while Build Predictor should mark it Likely to Build with a warning to confirm the insured grain before downstream metrics are added.",
+          refs: ["Build Predictor widget", "Architecture Guidance panel", "Source Metrics panel"],
+          proof: [["Active widget awareness", "Detected Build Predictor, Source Metrics, Architecture Guidance"], ["Workflow awareness", "Current step is D4 Semantic Build"], ["Extension recommendation", "Keep semantic logic thin and reuse shared_object inputs"]]
+        }
+      },
+      "semantic/models/mma/_mma_schema.yml": {
+        type: "yml",
+        title: "_mma_schema.yml",
+        breadcrumb: ["semantic", "models", "mma", "_mma_schema.yml"],
+        content: "version: 2\n\nmodels:\n  - name: mma_party_insured\n    description: Party insured dimension for MMA\n    columns:\n      - name: party_insured_id\n        tests:\n          - not_null\n          - unique\n      - name: Insured\n        description: Current insured display name",
+        copilot: {
+          developer: "Use the extension widgets to tell me whether these tests and descriptions make sense for this YAML.",
+          agent: "I’m using the extension’s Architecture Guidance and Validation-oriented Output panel for this review. The tests are reasonable if party_insured_id is truly unique at the semantic grain. I would also surface an extension hint that the Problems pane should warn when YAML uniqueness assumptions are stronger than the inferred grain from upstream pipeline models.",
+          refs: ["Problems pane", "Validation flow", "Architecture Guidance panel"],
+          proof: [["Detected extension area", "Problems pane should warn on weak grain assumptions"], ["Recommended widget action", "Validation summary should link back to inferred grain"], ["Copilot reasoning", "Tests are okay only if upstream grain is stable"]]
+        }
+      },
+      "semantic/models/mma/_mma_source.yml": {
+        type: "yml",
+        title: "_mma_source.yml",
+        breadcrumb: ["semantic", "models", "mma", "_mma_source.yml"],
+        content: "version: 2\n\nsources:\n  - name: shared_object\n    schema: axiom_etl_prd_lpl_btl_shared_object\n    tables:\n      - name: v_d_ax_party_insured\n      - name: v_d_ax_party_broker\n      - name: v_d_ax_submission",
+        copilot: {
+          developer: "Show me how Copilot would demonstrate awareness of our source wiring and extension UI at the same time.",
+          agent: "I can tell this file is part of your semantic cross-project wiring. In your extension, I would reference the Source Metrics panel to show cached metadata for shared_object tables and the Output panel to log that semantic models are intentionally reading from curated pipeline outputs rather than raw sources. That makes the assistant feel aware of both dbt architecture and the extension experience itself.",
+          refs: ["Source Metrics panel", "Output pane", "Cross-project source wiring"],
+          proof: [["Source awareness", "shared_object → semantic dependency detected"], ["Widget usage", "Source Metrics should show cached profile metadata"], ["Design signal", "Assistant knows this extension is architecture-aware"]]
+        }
+      },
+      "pipeline/models/shared_object/v_d_ax_party_broker.sql": {
+        type: "sql",
+        title: "v_d_ax_party_broker.sql",
+        breadcrumb: ["pipeline", "models", "shared_object", "v_d_ax_party_broker.sql"],
+        content: "SELECT\n    party_broker_id\n  , party_broker_key\n  , broker_name\n  , broker_group\n  , broker_network_group\nFROM {{ ref('t_d_ax_party_broker') }}\nWHERE broker_name IS NOT NULL",
+        copilot: {
+          developer: "Can Copilot tell the user this is reusable and also reference our custom extension features?",
+          agent: "Yes. I’d explicitly say this looks like a reusable shared dimension, then point to the Architecture Guidance panel and Reuse Candidate behavior in your extension. I’d also mention that the bottom Output area should log when a model is classified as high-reuse so developers can trace why Copilot is discouraging duplicate broker logic in product folders.",
+          refs: ["Architecture Guidance panel", "Reuse candidate behavior", "Bottom Output logging"],
+          proof: [["Architecture classification", "Shared reusable dimension"], ["Extension-aware suggestion", "Show reuse badge and output log entry"], ["Drift prevention", "Warn if broker logic is recreated in MMA"]]
+        }
+      },
+      "pipeline/models/mma/mma_t_ax_subm_plcy_americas_metrics.sql": {
+        type: "sql",
+        title: "mma_t_ax_subm_plcy_americas_metrics.sql",
+        breadcrumb: ["pipeline", "models", "mma", "mma_t_ax_subm_plcy_americas_metrics.sql"],
+        content: "SELECT\n    submission_id\n  , policy_symbol\n  , source_system_cd\n  , COUNT(DISTINCT quote_id) AS quote_cnt\n  , SUM(written_premium_amt) AS written_premium_amt\nFROM {{ ref('mma_t_d_ax_submission') }}\nGROUP BY\n    submission_id\n  , policy_symbol\n  , source_system_cd",
+        copilot: {
+          developer: "This should feel like Copilot understands both dbt and the extension. What would it say?",
+          agent: "I’d say this is a pipeline aggregate-support model and then reference your extension’s Build Predictor, Performance Forecast, and Architecture Guidance areas. For example: Build Predictor should warn about grain conflict risk, Performance Forecast should highlight distinct-count cost, and Architecture Guidance should explain why this belongs upstream of semantic exposure instead of being built directly in semantic.",
+          refs: ["Build Predictor", "Performance Forecast", "Architecture Guidance"],
+          proof: [["Detected model shape", "GROUP BY + metric derivation"], ["Widget-aware recommendation", "Show high compute signal in forecast"], ["Placement rationale", "Pipeline first, semantic second"]]
+        }
+      },
+      "pipeline/models/source.yml": {
+        type: "yml",
+        title: "source.yml",
+        breadcrumb: ["pipeline", "models", "source.yml"],
+        content: "version: 2\n\nsources:\n  - name: axiom_lpl\n    schema: axiom_etl_prd_lpl_btl_src\n    tables:\n      - name: t_ff_xle_snapshot_submission\n      - name: t_ff_xle_snapshot_policy",
+        copilot: {
+          developer: "Show how Copilot would mention our sidebar AI functions while reviewing source.yml.",
+          agent: "I’d point out that the AI Functions sidebar should expose Source Mapping, Source Metrics, and Context Budget checks for this file. In the Copilot conversation, I’d explicitly reference those extension functions and say that source registration is structurally fine, but the Source Mapping function should confirm coverage against the active product spec before pipeline build proceeds.",
+          refs: ["AI Functions sidebar", "Source Mapping", "Context Budget"],
+          proof: [["Sidebar awareness", "Source Mapping + Context Budget functions detected"], ["Recommended action", "Verify source coverage before D3 Pipeline Build"], ["Extension evidence", "Copilot references extension function names directly"]]
+        }
+      },
+      ".agent_context/L2/L2_02_NAMING_CONVENTIONS.md": {
+        type: "md",
+        title: "L2_02_NAMING_CONVENTIONS.md",
+        breadcrumb: [".agent_context", "L2", "L2_02_NAMING_CONVENTIONS.md"],
+        content: "# Naming conventions\n- semantic models use product prefixes\n- shared pipeline views use v_d_ax_* naming\n- prefer shared_object reuse over duplicate logic",
+        copilot: {
+          developer: "Can the assistant prove it knows we added extension-specific AI functions?",
+          agent: "Yes. I would explicitly say that your AI Functions sidebar includes Naming Review, Reuse Check, Drift Detection, and Scaffold Recommendation. Then I’d connect those to the current standards file by explaining that Naming Review should enforce product prefixes while Reuse Check should push developers toward shared_object before creating new product-specific dimensions.",
+          refs: ["Naming Review", "Reuse Check", "Drift Detection"],
+          proof: [["Extension function awareness", "Naming Review, Reuse Check, Drift Detection"], ["Current file role", "Foundational standards artifact"], ["Assistant behavior", "Standards docs override legacy outliers"]]
+        }
+      },
+      ".agent_context/architecture/pattern_library.md": {
+        type: "md",
+        title: "pattern_library.md",
+        breadcrumb: [".agent_context", "architecture", "pattern_library.md"],
+        content: "# Pattern Library\n\n## Pipeline aggregate support\n- GROUP BY + metric derivation\n\n## Shared reusable dimension\n- light projection + optional dedupe\n\n## Semantic thin exposure\n- business-facing selection and rename",
+        copilot: {
+          developer: "How do we make Copilot feel aware that the extension itself has architectural intelligence?",
+          agent: "By having it reference extension elements directly. For this file, I would say: I’m using the extension’s Architecture Guidance, Pattern Match, and Canonical Example features to classify the active model and suggest the nearest archetype. That makes the conversation feel less like generic chat and more like Copilot is living inside your extension experience.",
+          refs: ["Pattern Match", "Canonical Example", "Architecture Guidance"],
+          proof: [["Architectural intelligence awareness", "Pattern Match and Canonical Example referenced"], ["Current file role", "Pattern library for scaffolding and classification"], ["UX outcome", "Copilot appears aware of extension-specific architecture widgets"]]
+        }
+      }
+    };
+
+    const tree = [
+      { type: 'folder', label: 'semantic', path: 'semantic', children: [
+        { type: 'folder', label: 'models', path: 'semantic/models', children: [
+          { type: 'folder', label: 'mma', path: 'semantic/models/mma', children: [
+            { type: 'file', label: 'mma_party_insured.sql', path: 'semantic/models/mma/mma_party_insured.sql' },
+            { type: 'file', label: '_mma_schema.yml', path: 'semantic/models/mma/_mma_schema.yml' },
+            { type: 'file', label: '_mma_source.yml', path: 'semantic/models/mma/_mma_source.yml' }
+          ] }
+        ] }
+      ] },
+      { type: 'folder', label: 'pipeline', path: 'pipeline', children: [
+        { type: 'folder', label: 'models', path: 'pipeline/models', children: [
+          { type: 'file', label: 'source.yml', path: 'pipeline/models/source.yml' },
+          { type: 'folder', label: 'shared_object', path: 'pipeline/models/shared_object', children: [
+            { type: 'file', label: 'v_d_ax_party_broker.sql', path: 'pipeline/models/shared_object/v_d_ax_party_broker.sql' }
+          ] },
+          { type: 'folder', label: 'mma', path: 'pipeline/models/mma', children: [
+            { type: 'file', label: 'mma_t_ax_subm_plcy_americas_metrics.sql', path: 'pipeline/models/mma/mma_t_ax_subm_plcy_americas_metrics.sql' }
+          ] }
+        ] }
+      ] },
+      { type: 'folder', label: '.agent_context', path: '.agent_context', children: [
+        { type: 'folder', label: 'L2', path: '.agent_context/L2', children: [
+          { type: 'file', label: 'L2_02_NAMING_CONVENTIONS.md', path: '.agent_context/L2/L2_02_NAMING_CONVENTIONS.md' }
+        ] },
+        { type: 'folder', label: 'architecture', path: '.agent_context/architecture', children: [
+          { type: 'file', label: 'pattern_library.md', path: '.agent_context/architecture/pattern_library.md' }
+        ] }
+      ] }
+    ];
+
+    const aiFunctions = [
+      { name: 'Product Intake', group: 'Workflow', desc: 'Analyze requirement files and initialize L3 product spec from business inputs.' },
+      { name: 'Source Mapping', group: 'Workflow', desc: 'Validate source candidates against source index and cached schema metadata.' },
+      { name: 'Pipeline Build', group: 'Workflow', desc: 'Generate or refine pipeline models, shared objects, and upstream aggregates.' },
+      { name: 'Semantic Build', group: 'Workflow', desc: 'Generate thin semantic exposures and aligned YAML artifacts.' },
+      { name: 'Config Integration', group: 'Workflow', desc: 'Recommend dbt_project wiring, tags, and config placement.' },
+      { name: 'Validation', group: 'Workflow', desc: 'Check naming, tests, YAML consistency, and likely build blockers.' },
+      { name: 'Build Predictor', group: 'Simulation', desc: 'Estimate whether the active model is likely to build using local context only.' },
+      { name: 'Source Metrics', group: 'Simulation', desc: 'Show cached row counts, grain hints, null prevalence, and source health signals.' },
+      { name: 'Performance Forecast', group: 'Simulation', desc: 'Estimate runtime tier, output volume, and compute pressure.' },
+      { name: 'Simulated Result Preview', group: 'Simulation', desc: 'Generate a local, AI-projected preview of likely output rows.' },
+      { name: 'Assumptions & Confidence', group: 'Simulation', desc: 'Explain what was known, inferred, or missing in the prediction path.' },
+      { name: 'Scenario Recalculation', group: 'Simulation', desc: 'Adjust fanout, row count, or selectivity assumptions and recalculate.' },
+      { name: 'Architecture Guidance', group: 'Architecture', desc: 'Recommend role, placement, materialization, and expected artifacts.' },
+      { name: 'Pattern Match', group: 'Architecture', desc: 'Identify the nearest canonical pattern from the architecture library.' },
+      { name: 'Reuse Check', group: 'Architecture', desc: 'Detect similar or reusable models before suggesting new code.' },
+      { name: 'Grain & Fanout Check', group: 'Architecture', desc: 'Infer likely grain and highlight one-to-many expansion risk.' },
+      { name: 'Drift Detection', group: 'Architecture', desc: 'Flag when new logic departs from preferred architecture rules.' },
+      { name: 'Canonical Example Finder', group: 'Architecture', desc: 'Show the closest existing models to imitate or adapt.' },
+      { name: 'Naming Review', group: 'Standards', desc: 'Review file, model, alias, and column names against conventions.' },
+      { name: 'Schema YAML Review', group: 'Standards', desc: 'Check schema patterns, descriptions, and test appropriateness.' },
+      { name: 'Source Wiring Review', group: 'Standards', desc: 'Verify source.yml and _source.yml alignment across projects.' },
+      { name: 'Context Budget Check', group: 'Orchestration', desc: 'Estimate whether a prompt step fits inside the target context budget.' },
+      { name: 'Artifact Tracker', group: 'Orchestration', desc: 'Show what outputs exist, what is missing, and what the next step needs.' },
+      { name: 'Copilot Prompt Launcher', group: 'Orchestration', desc: 'Launch a task-focused Copilot conversation pre-wired to the right context.' }
+    ];
+
+    const bottomPanels = {
+      Output: (state) => `[${state.currentFunction || state.currentStep}] Active action\n[Info] File: ${state.activeFile}\n[Info] Sidebar mode: ${state.leftMode}\n[Info] Copilot referenced extension widgets for this file\n[Success] Output pane remains docked between the left tools and right Copilot conversation`,
+      Terminal: (state) => `PS C:\\repos\\BTL_SEMANTIC_LAYER> copilot-extension analyze --file \"${state.activeFile}\"\nLoading active file...\nLoading extension widgets...\nLoading architecture references...\nDone.`,
+      Problems: () => `1. Review whether semantic grain is stable before adding strict uniqueness tests.\n2. Confirm cross-project source wiring is aligned with environment-specific schema names.\n3. Avoid duplicating shared_object logic inside product folders.`,
+      Logs: (state) => `[Copilot] Referenced extension widget: ${state.currentFunction || 'Architecture Guidance'}\n[Copilot] Active breadcrumb: ${files[state.activeFile].breadcrumb.join(' > ')}\n[Copilot] Conversation updated to mention extension-specific capabilities`
+    };
+
+    const state = {
+      leftMode: 'explorer', filter: '', openTabs: ['semantic/models/mma/mma_party_insured.sql'], activeFile: 'semantic/models/mma/mma_party_insured.sql',
+      expanded: new Set(['semantic','semantic/models','semantic/models/mma','pipeline','pipeline/models','pipeline/models/shared_object','pipeline/models/mma','.agent_context','.agent_context/L2','.agent_context/architecture']),
+      bottomTab: 'Output', currentFunction: 'Architecture Guidance', currentStep: 'D4 Semantic Build'
+    };
+
+    const els = {
+      leftScroll: document.getElementById('leftScroll'), explorerToggle: document.getElementById('explorerToggle'), functionsToggle: document.getElementById('functionsToggle'),
+      searchInput: document.getElementById('searchInput'), tabs: document.getElementById('tabs'), breadcrumb: document.getElementById('breadcrumb'),
+      gutter: document.getElementById('gutter'), code: document.getElementById('code'), bottomTabs: document.getElementById('bottomTabs'),
+      bottomContent: document.getElementById('bottomContent'), activeTitle: document.getElementById('activeTitle'), copilotMeta: document.getElementById('copilotMeta'),
+      copilotScroll: document.getElementById('copilotScroll'), inputBox: document.getElementById('inputBox'), copilotSpinner: document.getElementById('copilotSpinner')
+    };
+
+    function iconFor(path) {
+      if (path.endsWith('.sql')) return '<span class="icon-sql">🧾</span>';
+      if (path.endsWith('.yml')) return '<span class="icon-yml">🟠</span>';
+      if (path.endsWith('.md')) return '<span class="icon-md">📘</span>';
+      return '<span class="icon-folder">📁</span>';
+    }
+
+    function shouldShowNode(node) {
+      const q = state.filter.trim().toLowerCase();
+      if (!q) return true;
+      if (node.label.toLowerCase().includes(q) || node.path.toLowerCase().includes(q)) return true;
+      return (node.children || []).some(shouldShowNode);
+    }
+
+    function renderLeftPanel() {
+      els.explorerToggle.classList.toggle('active', state.leftMode === 'explorer');
+      els.functionsToggle.classList.toggle('active', state.leftMode === 'functions');
+      if (state.leftMode === 'explorer') renderExplorer(); else renderFunctions();
+    }
+
+    function renderExplorer() {
+      const body = [];
+      body.push('<div class="section-title"><span>Open Editors</span><span class="tiny">' + state.openTabs.length + '</span></div>');
+      state.openTabs.forEach(path => body.push(`<div class="tree-row indent-0 ${state.activeFile === path ? 'active' : ''}" data-open-file="${path}">${iconFor(path)}<span class="label">${files[path].title}</span></div>`));
+      body.push('<div class="section-title"><span>Project Tree</span><span class="tiny">full explorer</span></div>');
+      function walk(nodes, depth) {
+        nodes.forEach(node => {
+          if (!shouldShowNode(node)) return;
+          if (node.type === 'folder') {
+            const isOpen = state.expanded.has(node.path) || (!!state.filter && shouldShowNode(node));
+            body.push(`<div class="tree-row indent-${Math.min(depth,5)}" data-toggle="${node.path}"><span class="caret">${isOpen ? '▾' : '▸'}</span>${iconFor(node.path)}<span class="label">${node.label}</span></div>`);
+            if (isOpen) walk(node.children || [], depth + 1);
+          } else {
+            body.push(`<div class="tree-row indent-${Math.min(depth,5)} ${state.activeFile === node.path ? 'active' : ''}" data-open-file="${node.path}">${iconFor(node.path)}<span class="label">${node.label}</span></div>`);
+          }
+        });
+      }
+      walk(tree, 0);
+      els.leftScroll.innerHTML = body.join('');
+      els.leftScroll.querySelectorAll('[data-toggle]').forEach(el => el.onclick = () => { const p = el.dataset.toggle; if (state.expanded.has(p)) state.expanded.delete(p); else state.expanded.add(p); renderExplorer(); });
+      els.leftScroll.querySelectorAll('[data-open-file]').forEach(el => el.onclick = () => openFile(el.dataset.openFile));
+    }
+
+    function renderFunctions() {
+      const q = state.filter.trim().toLowerCase();
+      const items = aiFunctions.filter(f => !q || f.name.toLowerCase().includes(q) || f.group.toLowerCase().includes(q) || f.desc.toLowerCase().includes(q));
+      const html = ['<div class="section-title"><span>AI Functions</span><span class="tiny">scroll for more</span></div><div class="ai-func-list">'];
+      items.forEach(f => html.push(`<div class="func-card" data-function="${f.name}"><div class="func-title"><span>${f.name}</span><span class="pill">${f.group}</span></div><div class="func-desc">${f.desc}</div></div>`));
+      html.push('</div>');
+      els.leftScroll.innerHTML = html.join('');
+      els.leftScroll.querySelectorAll('[data-function]').forEach(el => el.onclick = () => activateFunction(el.dataset.function));
+    }
+
+    function openFile(path) { if (!state.openTabs.includes(path)) state.openTabs.push(path); state.activeFile = path; renderAll(); pulseCopilot(); }
+    function closeTab(path) {
+      const idx = state.openTabs.indexOf(path); if (idx === -1) return; state.openTabs.splice(idx, 1);
+      if (state.activeFile === path) state.activeFile = state.openTabs[Math.max(0, idx - 1)] || 'semantic/models/mma/mma_party_insured.sql';
+      if (!state.openTabs.length) state.openTabs = [state.activeFile]; renderAll();
+    }
+    function activateFunction(name) {
+      state.currentFunction = name;
+      if (name === 'Pipeline Build') state.currentStep = 'D3 Pipeline Build';
+      else if (name === 'Semantic Build') state.currentStep = 'D4 Semantic Build';
+      else if (name === 'Validation') state.currentStep = 'D6 Validation';
+      else if (name === 'Source Mapping') state.currentStep = 'D2 Source Mapping';
+      else if (name === 'Product Intake') state.currentStep = 'D1 Product Intake';
+      else if (name === 'Config Integration') state.currentStep = 'D5 Config Integration';
+      renderAll(); pulseCopilot();
+    }
+
+    function renderTabs() {
+      els.tabs.innerHTML = state.openTabs.map(path => `<div class="tab ${state.activeFile === path ? 'active' : ''}" data-tab="${path}">${iconFor(path)}<span>${files[path].title}</span><span class="close" data-close="${path}">✕</span></div>`).join('');
+      els.tabs.querySelectorAll('[data-tab]').forEach(el => el.onclick = (e) => { if (e.target.dataset.close) return; openFile(el.dataset.tab); });
+      els.tabs.querySelectorAll('[data-close]').forEach(el => el.onclick = (e) => { e.stopPropagation(); closeTab(el.dataset.close); });
+    }
+
+    function renderBreadcrumb() {
+      const f = files[state.activeFile];
+      els.breadcrumb.innerHTML = f.breadcrumb.map((c, i) => `<span class="crumb ${i === f.breadcrumb.length - 1 ? 'active' : ''}">${c}</span>${i < f.breadcrumb.length - 1 ? '<span>›</span>' : ''}`).join('');
+      els.activeTitle.textContent = state.activeFile;
+    }
+
+    function syntaxHighlight(text, type) {
+      const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      if (type === 'sql') return esc.replace(/(--.*?$)/gm, '<span class="cm">$1</span>').replace(/\b(SELECT|FROM|WHERE|CASE|WHEN|THEN|END|AS|GROUP BY|GROUP|BY|SUM|COUNT|DISTINCT)\b/g, '<span class="kw">$1</span>').replace(/\b(ref|source)\b/g, '<span class="fn">$1</span>').replace(/'([^']*)'/g, '<span class="str">&#39;$1&#39;</span>');
+      return esc.replace(/(#.*?$)/gm, '<span class="cm">$1</span>').replace(/^(\s*-?\s*[A-Za-z_][A-Za-z0-9_\-]*:)/gm, '<span class="name">$1</span>').replace(/\b(version|models|sources|schema|tables|columns|description|tests|name)\b/g, '<span class="kw">$1</span>');
+    }
+
+    function renderCode() {
+      const f = files[state.activeFile];
+      const lines = f.content.split('\n');
+      els.gutter.innerHTML = lines.map((_, i) => `<div class="line">${i + 1}</div>`).join('');
+      els.code.innerHTML = lines.map(line => `<div class="line">${syntaxHighlight(line || ' ', f.type)}</div>`).join('');
+    }
+
+    function renderBottom() {
+      els.bottomTabs.innerHTML = Object.keys(bottomPanels).map(name => `<div class="bottom-tab ${state.bottomTab === name ? 'active' : ''}" data-bottom="${name}">${name}</div>`).join('');
+      els.bottomTabs.querySelectorAll('[data-bottom]').forEach(el => el.onclick = () => { state.bottomTab = el.dataset.bottom; renderBottom(); });
+      els.bottomContent.textContent = bottomPanels[state.bottomTab](state);
+    }
+
+    function renderCopilot() {
+      const f = files[state.activeFile];
+      const func = state.currentFunction || 'Architecture Guidance';
+      els.copilotMeta.innerHTML = [`<span class="pill">Active file: ${f.title}</span>`, `<span class="pill good">Function: ${func}</span>`, `<span class="pill">Step: ${state.currentStep}</span>`, `<span class="pill">Sidebar mode: ${state.leftMode}</span>`].join('');
+      els.copilotScroll.innerHTML = `
+        <div class="chat">
+          <div class="chat-header"><span>Conversation</span><span class="tiny">Copilot aware of extension elements</span></div>
+          <div class="chat-body">
+            <div class="msg dev"><div class="who">Developer</div><div>${f.copilot.developer}</div></div>
+            <div class="msg agent"><div class="who">GitHub Copilot Agent</div><div>${f.copilot.agent}</div><div class="refs">${f.copilot.refs.map(r => `<span class="pill">${r}</span>`).join('')}</div></div>
+          </div>
+        </div>
+        <div class="chat">
+          <div class="chat-header"><span>Evidence Copilot sees extension features</span><span class="tiny">widget-level proof</span></div>
+          <div class="chat-body widget-proof">${f.copilot.proof.map(p => `<div class="proof-item"><div class="label">${p[0]}</div><div>${p[1]}</div></div>`).join('')}</div>
+        </div>
+        <div class="chat">
+          <div class="chat-header"><span>Suggested next interaction</span><span class="tiny">extension-aware</span></div>
+          <div class="chat-body"><div class="msg agent" style="margin-bottom:0;"><div class="who">GitHub Copilot Agent</div><div>I can continue by using <strong>${func}</strong> while watching the Output/Logs panel and keeping the active file synchronized with the Explorer. That way the developer sees the code, the extension feature being used, and the Copilot reasoning all at once.</div></div></div>
+        </div>`;
+      els.inputBox.textContent = `Try: “Copilot, use ${func} on ${f.title} and explain what the extension is showing.”`;
+    }
+
+    function pulseCopilot() { els.copilotSpinner.style.visibility = 'visible'; clearTimeout(pulseCopilot._timer); pulseCopilot._timer = setTimeout(() => { els.copilotSpinner.style.visibility = 'hidden'; }, 950); }
+    function renderAll() { renderLeftPanel(); renderTabs(); renderBreadcrumb(); renderCode(); renderBottom(); renderCopilot(); }
+
+    els.explorerToggle.onclick = () => { state.leftMode = 'explorer'; renderLeftPanel(); };
+    els.functionsToggle.onclick = () => { state.leftMode = 'functions'; renderLeftPanel(); };
+    els.searchInput.addEventListener('input', e => { state.filter = e.target.value; renderLeftPanel(); });
+
+    renderAll(); pulseCopilot();
+  </script>
+</body>
+</html>
