@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BTL Agentic AI IDE Prototype</title>
+  <style>
+    :root {
+      --bg: #1e1e1e;
+      --panel: #252526;
+      --panel-2: #2d2d30;
+      --panel-3: #333333;
+      --border: #3c3c3c;
+      --text: #d4d4d4;
+      --muted: #9da0a6;
+      --accent: #0e639c;
+      --accent-2: #3794ff;
+      --green: #4ec9b0;
+      --yellow: #dcdcaa;
+      --orange: #ce9178;
+      --red: #f48771;
+      --purple: #c586c0;
+      --blue: #569cd6;
+      --line: #85858555;
+      --shadow: 0 8px 24px rgba(0,0,0,.28);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; font-family: Inter, Segoe UI, Arial, sans-serif; background: var(--bg); color: var(--text); }
+    body { overflow: hidden; }
+
+    .app {
+      display: grid;
+      grid-template-rows: 38px 1fr 170px;
+      height: 100vh;
+      background: var(--bg);
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 52px 1fr 320px;
+      align-items: center;
+      gap: 10px;
+      background: #181818;
+      border-bottom: 1px solid var(--border);
+      padding: 0 12px;
+      font-size: 12px;
+    }
+
+    .traffic {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot.red { background:#ff5f56; }
+    .dot.yellow { background:#ffbd2e; }
+    .dot.green { background:#27c93f; }
+
+    .titlebar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+    }
+    .title-pill {
+      background: #202020;
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 6px;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .demo-badge {
+      justify-self: end;
+      background: rgba(55,148,255,.12);
+      border: 1px solid rgba(55,148,255,.35);
+      color: #9cc7ff;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      letter-spacing: .3px;
+    }
+
+    .main {
+      display: grid;
+      grid-template-columns: 74px 320px minmax(540px,1fr) 420px;
+      min-height: 0;
+    }
+
+    .activitybar {
+      background: #181818;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 10px;
+      gap: 8px;
+    }
+    .activity-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      cursor: pointer;
+      border-left: 2px solid transparent;
+      user-select: none;
+    }
+    .activity-btn.active {
+      color: #fff;
+      background: #202020;
+      border-left-color: var(--accent-2);
+    }
+
+    .sidebar, .editor-shell, .right-panel, .bottom-panel { min-height: 0; }
+
+    .sidebar {
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+    }
+    .sidebar-header {
+      padding: 12px 14px 8px;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .search {
+      margin: 0 12px 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #1f1f1f;
+      color: var(--text);
+      outline: none;
+      font-size: 12px;
+    }
+    .section-title {
+      padding: 8px 14px;
+      font-size: 11px;
+      letter-spacing: .8px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid #00000022;
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .tree, .workflow-list {
+      overflow: auto;
+      min-height: 0;
+      padding: 8px 0;
+    }
+    .tree-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      user-select: none;
+      position: relative;
+    }
+    .tree-row:hover { background: #2a2d2e; }
+    .tree-row.active { background: rgba(55,148,255,.18); }
+    .tree-row .caret { width: 10px; color: var(--muted); }
+    .tree-row .label { overflow: hidden; text-overflow: ellipsis; }
+    .indent-0 { padding-left: 12px; }
+    .indent-1 { padding-left: 26px; }
+    .indent-2 { padding-left: 40px; }
+    .indent-3 { padding-left: 54px; }
+    .indent-4 { padding-left: 68px; }
+    .indent-5 { padding-left: 82px; }
+
+    .icon-folder { color: #d7ba7d; }
+    .icon-sql { color: #4fc1ff; }
+    .icon-yml { color: #ce9178; }
+    .icon-md { color: #c586c0; }
+
+    .workflow-list { border-top: 1px solid var(--border); }
+    .workflow-step {
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 14px;
+      cursor: pointer;
+      border-bottom: 1px solid #00000018;
+      font-size: 12px;
+    }
+    .workflow-step:hover { background: #2a2d2e; }
+    .workflow-step.active { background: rgba(55,148,255,.18); }
+    .workflow-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .status-done .workflow-icon { color: var(--green); border-color: rgba(78,201,176,.5); }
+    .status-active .workflow-icon { color: #fff; background: var(--accent); border-color: var(--accent-2); }
+    .status-pending .workflow-icon { color: var(--muted); }
+    .workflow-meta {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .sidebar-footer {
+      padding: 10px 14px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+      background: #202020;
+    }
+
+    .editor-shell {
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      min-width: 0;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 1px;
+      overflow-x: auto;
+      background: #1b1b1b;
+      border-bottom: 1px solid var(--border);
+    }
+    .tab {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--muted);
+      background: #2a2a2a;
+      border-top: 2px solid transparent;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .tab.active {
+      color: #fff;
+      background: #1f1f1f;
+      border-top-color: var(--accent-2);
+    }
+    .tab .close {
+      opacity: .6;
+      font-size: 11px;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+    .tab .close:hover { background: rgba(255,255,255,.08); opacity: 1; }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+      font-size: 12px;
+      color: var(--muted);
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .crumb.active { color: var(--text); }
+
+    .editor {
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      min-height: 0;
+      background: #1e1e1e;
+      overflow: hidden;
+    }
+    .gutter, .code {
+      overflow: auto;
+      padding-top: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      line-height: 22px;
+    }
+    .gutter {
+      background: #1b1b1b;
+      color: #6e7681;
+      text-align: right;
+      padding-right: 12px;
+      border-right: 1px solid var(--border);
+      user-select: none;
+    }
+    .code {
+      padding-left: 16px;
+      padding-right: 24px;
+      white-space: pre;
+      color: var(--text);
+    }
+    .line { height: 22px; }
+    .kw { color: var(--purple); }
+    .fn { color: var(--yellow); }
+    .str { color: var(--orange); }
+    .cm { color: #6a9955; }
+    .name { color: var(--blue); }
+    .num { color: #b5cea8; }
+
+    .right-panel {
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-width: 0;
+    }
+    .right-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      background: #202020;
+      font-size: 12px;
+    }
+    .mode-toggle {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .panel-scroll {
+      overflow: auto;
+      min-height: 0;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .card {
+      background: linear-gradient(180deg, #2b2b2d 0%, #262628 100%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 10px 12px;
+      border-bottom: 1px solid #00000022;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: #fff;
+    }
+    .card-body {
+      padding: 12px;
+      font-size: 12px;
+      color: var(--text);
+    }
+    .tiny { font-size: 11px; color: var(--muted); }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      border: 1px solid var(--border);
+      background: #232325;
+      color: var(--text);
+    }
+    .pill.good { color: var(--green); border-color: rgba(78,201,176,.35); }
+    .pill.warn { color: var(--yellow); border-color: rgba(220,220,170,.35); }
+    .pill.risk { color: var(--red); border-color: rgba(244,135,113,.35); }
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .metric {
+      background: #1f1f21;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .metric .label { color: var(--muted); font-size: 11px; }
+    .metric .value { margin-top: 4px; font-size: 14px; color: #fff; }
+    .assistant-msg {
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      margin-bottom: 10px;
+      background: #212123;
+    }
+    .assistant-msg.you { border-left: 3px solid var(--accent-2); }
+    .assistant-msg.ai { border-left: 3px solid var(--green); }
+    .refs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .spinner {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .spinner i {
+      width: 10px; height: 10px; border: 2px solid #555; border-top-color: var(--accent-2); border-radius: 50%;
+      animation: spin .9s linear infinite;
+      display: inline-block;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .source-row, .risk-row, .assumption-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 0;
+      border-bottom: 1px dashed #ffffff12;
+    }
+    .source-row:last-child, .risk-row:last-child, .assumption-row:last-child { border-bottom: 0; }
+
+    .preview-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+      overflow: hidden;
+      border-radius: 8px;
+    }
+    .preview-table th, .preview-table td {
+      padding: 8px;
+      border-bottom: 1px solid #ffffff12;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .preview-table th { color: var(--muted); font-weight: 600; }
+
+    .arch-list {
+      display: grid;
+      gap: 8px;
+    }
+    .arch-item {
+      background: #1f1f21;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .segmented {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    .seg-btn {
+      background: #1f1f21;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 11px;
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+    .seg-btn.active { border-color: var(--accent-2); color: #fff; }
+
+    .bottom-panel {
+      background: #181818;
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-rows: 38px 1fr;
+      min-height: 0;
+    }
+    .bottom-tabs {
+      display: flex;
+      gap: 1px;
+      background: #111;
+      border-bottom: 1px solid var(--border);
+    }
+    .bottom-tab {
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      background: #202020;
+    }
+    .bottom-tab.active { color: #fff; background: #1b1b1b; }
+    .bottom-content {
+      overflow: auto;
+      padding: 14px 16px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 20px;
+      white-space: pre-wrap;
+      color: var(--text);
+    }
+
+    .muted { color: var(--muted); }
+    .divider { height: 1px; background: #ffffff12; margin: 10px 0; }
+    .small-link { color: #9cc7ff; }
+
+    @media (max-width: 1400px) {
+      .main { grid-template-columns: 60px 280px minmax(460px,1fr) 360px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="traffic">
+        <span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span>
+      </div>
+      <div class="titlebar">
+        <span class="muted">BTL Agentic AI IDE</span>
+        <span class="title-pill" id="activeTitle">semantic/models/mma/mma_party_insured.sql</span>
+      </div>
+      <div class="demo-badge">DEMO / PREDICTIVE SIMULATION MODE</div>
+    </div>
+
+    <div class="main">
+      <div class="activitybar">
+        <div class="activity-btn active">📁</div>
+        <div class="activity-btn">🔎</div>
+        <div class="activity-btn">🌿</div>
+        <div class="activity-btn">⚙️</div>
+        <div class="activity-btn">🧪</div>
+      </div>
+
+      <div class="sidebar">
+        <div class="sidebar-header"><span>Explorer</span><span class="tiny">BTL_SEMANTIC_LAYER</span></div>
+        <input class="search" id="searchInput" placeholder="Filter files and folders" />
+        <div class="section-title"><span>Open Editors</span><span class="tiny" id="openCount">0</span></div>
+        <div class="tree" id="sidebarBody"></div>
+        <div class="section-title"><span>Workflow</span><span class="tiny">D1–D6</span></div>
+        <div class="workflow-list" id="workflowList"></div>
+        <div class="sidebar-footer">Product: <strong>MMA</strong> · Context budget visible · Human orchestrator in loop</div>
+      </div>
+
+      <div class="editor-shell">
+        <div class="tabs" id="tabs"></div>
+        <div class="breadcrumb" id="breadcrumb"></div>
+        <div class="editor">
+          <div class="gutter" id="gutter"></div>
+          <div class="code" id="code"></div>
+        </div>
+      </div>
+
+      <div class="right-panel">
+        <div class="right-header">
+          <strong>Assistant + Simulation + Architecture</strong>
+          <div class="mode-toggle">active step: <span id="activeStepTag" class="pill">D3 Pipeline Build</span></div>
+        </div>
+        <div class="panel-scroll">
+          <div class="card">
+            <div class="card-header"><span>AI Assistant</span><span id="assistantState" class="spinner"><i></i> thinking...</span></div>
+            <div class="card-body">
+              <div class="assistant-msg you">
+                <div class="tiny">You</div>
+                <div id="promptText"></div>
+              </div>
+              <div class="assistant-msg ai">
+                <div class="tiny">Assistant</div>
+                <div id="responseText"></div>
+                <div class="refs" id="refs"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><span>Predictive Simulation</span><span class="pill warn" id="buildStatusPill">Likely to Build</span></div>
+            <div class="card-body">
+              <div class="metrics-grid">
+                <div class="metric"><div class="label">Confidence</div><div class="value" id="confidenceValue">87%</div></div>
+                <div class="metric"><div class="label">Runtime Tier</div><div class="value" id="runtimeValue">Medium</div></div>
+                <div class="metric"><div class="label">Projected Rows</div><div class="value" id="rowsValue">150K–300K</div></div>
+                <div class="metric"><div class="label">Join Risk</div><div class="value" id="joinRiskValue">High</div></div>
+              </div>
+              <div class="divider"></div>
+              <div class="tiny">Source Metrics</div>
+              <div id="sourceMetrics"></div>
+              <div class="divider"></div>
+              <div class="tiny">Predicted blockers / rationale</div>
+              <div id="risksList"></div>
+              <div class="divider"></div>
+              <div class="tiny">Simulated result preview</div>
+              <div id="previewWrap"></div>
+              <div class="divider"></div>
+              <div class="tiny">Scenario recalculation</div>
+              <div class="segmented">
+                <button class="seg-btn active" data-scenario="baseline">Baseline</button>
+                <button class="seg-btn" data-scenario="highRows">High volume</button>
+                <button class="seg-btn" data-scenario="fanout">Fanout stress</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><span>Architecture Guidance</span><span class="pill" id="archConfidence">high confidence</span></div>
+            <div class="card-body">
+              <div class="arch-list">
+                <div class="arch-item"><div class="tiny">Recommended role</div><div id="roleText"></div></div>
+                <div class="arch-item"><div class="tiny">Recommended location</div><div id="locationText"></div></div>
+                <div class="arch-item"><div class="tiny">Likely grain</div><div id="grainText"></div></div>
+                <div class="arch-item"><div class="tiny">Reuse candidates</div><div id="reuseText"></div></div>
+                <div class="arch-item"><div class="tiny">Canonical examples</div><div id="examplesText"></div></div>
+                <div class="arch-item"><div class="tiny">Drift / risk warnings</div><div id="driftText"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-panel">
+      <div class="bottom-tabs" id="bottomTabs"></div>
+      <div class="bottom-content" id="bottomContent"></div>
+    </div>
+  </div>
+
+  <script>
+    const files = {
+      "semantic/models/mma/mma_party_insured.sql": {
+        type: "sql",
+        title: "mma_party_insured.sql",
+        breadcrumb: ["semantic", "models", "mma", "mma_party_insured.sql"],
+        content: `SELECT\n    v_d_ax_party_insured.\`party_insured_id\`\n  , v_d_ax_party_insured.\`party_insured_key\`\n  , \`insured_ultimate_client_selected_ind\`\n  , v_d_ax_party_insured.\`Insured\`\n  , \`Insured DUNS Number\`\n  -- \`Insured Pseudo DUNS Number\`\n  , v_d_ax_party_insured.\`Insured City\`\n\n  , CASE WHEN v_d_ax_party_insured.insured_data_source_ind = 'Local'\n    THEN v_d_ax_party_insured.\`Insured State\`\n  END AS \`Insured State\`\n\n  , CASE WHEN v_d_ax_party_insured.insured_data_source_ind = 'Local'\n    THEN v_d_ax_party_insured_1.insured_ctry\n  END AS \`Insured Country\`\n\n  , v_d_ax_party_insured.\`Insured Group\`\n  , v_d_ax_party_insured.\`Insured Client Group\`\n  , v_d_ax_party_insured.\`Ultimate Client\`\n  , v_d_ax_party_insured.\`Ultimate Client Group Parent\`\n  , v_d_ax_party_insured.\`Ultimate Client Code\`\n\n  , v_d_ax_party_insured.\`Insured Trade of Business Code\`\n  , v_d_ax_party_insured.\`Insured Trade of Business\`\n\n  , CASE WHEN v_d_ax_party_insured.insured_data_source_ind = 'Local'\n    THEN v_d_ax_party_insured_1.insured_duns_nbr\n  END\n\n  , CASE WHEN v_d_ax_party_insured.insured_data_source_ind = 'Local'\n    THEN v_d_ax_party_insured_1.insured_pseudo_duns_nbr\n  END\n\n  , v_d_ax_party_insured.insured_static_nme_cd AS \`Insured Static Name Code\`\n  , v_d_ax_party_insured.customer_relationship_leader_nme AS \`Customer Relationship Leader Name\`\n\nFROM {{ source('shared_object', 'v_d_ax_party_insured') }} AS v_d_ax_party_insured`,
+        assistant: {
+          prompt: "Review this semantic model and suggest whether it belongs in semantic or should be split with more logic upstream.",
+          response: "This file fits the semantic layer as a consumer-facing exposure model, but it should stay thin. The CASE-based localization and mapping is acceptable here, while heavier enrichment or normalization should remain in shared_object or pipeline. I would preserve naming as-is and verify the output grain before adding downstream measures.",
+          refs: ["L2_02_NAMING_CONVENTIONS.md", "L2_03_MODEL_TEMPLATES.md", "L2_05_SOURCE_YML_PATTERNS.md"]
+        },
+        simulation: {
+          baseline: { status: "Likely to Build", confidence: "87%", runtime: "Medium", rows: "150K–300K", joinRisk: "Medium", risks: ["All source() references appear resolved.", "Output grain likely at party_insured_id.", "Localized CASE branches may hide null coverage issues."], preview: { columns: ["party_insured_id", "Insured", "Insured State", "Ultimate Client"], rows: [["10234", "Acme Holdings", "NY", "Acme Group"], ["10235", "Blue Ridge Foods", "PA", "Blue Ridge"], ["10236", "Mariner Retail", "TX", "Mariner Global"]] } },
+          highRows: { status: "At Risk", confidence: "73%", runtime: "High", rows: "650K–1.2M", joinRisk: "High", risks: ["Higher input volume increases CASE branch scan cost.", "Potential one-to-many join to localized attributes may inflate row count.", "Materialization as table may be preferable for repeated reads."], preview: { columns: ["party_insured_id", "Insured", "Insured State", "Ultimate Client"], rows: [["90234", "Northern Logistics", "IL", "North Group"], ["90235", "Canyon Retail", "CA", "Canyon"], ["90236", "Granite Foods", "GA", "Granite Parent"]] } },
+          fanout: { status: "At Risk", confidence: "68%", runtime: "High", rows: "300K–900K", joinRisk: "High", risks: ["Likely one-to-many fanout from auxiliary insured enrichment.", "Null-state localization may create sparse output dimensions.", "Recommend testing uniqueness on party_insured_id."], preview: { columns: ["party_insured_id", "Insured", "Insured State", "Ultimate Client"], rows: [["30234", "Acme Holdings", "NY", "Acme Group"], ["30234", "Acme Holdings", "NY", "Acme Group"], ["30235", "Blue Ridge Foods", "PA", "Blue Ridge"]] } }
+        },
+        architecture: {
+          confidence: "high confidence",
+          role: "Semantic exposure model",
+          location: "semantic/models/mma",
+          grain: "Likely unique at party_insured_id",
+          reuse: ["shared_object.v_d_ax_party_insured", "mma_party_broker.sql"],
+          examples: ["mma_party_broker.sql", "mma_party_underwriter.sql"],
+          drift: ["Keep semantic logic thin; avoid reintroducing heavy upstream enrichment.", "Watch for duplicate insured logic already handled in shared_object."]
+        }
+      },
+
+      "semantic/models/mma/_mma_schema.yml": {
+        type: "yml",
+        title: "_mma_schema.yml",
+        breadcrumb: ["semantic", "models", "mma", "_mma_schema.yml"],
+        content: `version: 2\n\nmodels:\n  - name: mma_party_insured\n    description: Party insured dimension for Middle Market Americas\n    columns:\n      - name: party_insured_id\n        description: Unique insured surrogate key\n        tests:\n          - not_null\n          - unique\n\n      - name: Insured\n        description: Current insured display name\n\n      - name: Ultimate Client\n        description: Parent client grouping label\n\n  - name: mma_submission\n    description: Submission exposure model for MMA\n    columns:\n      - name: submission_id\n        tests:\n          - not_null`,
+        assistant: {
+          prompt: "Check this schema YAML for dbt completeness and alignment with team standards.",
+          response: "This YAML is close to the expected pattern. I would keep version 2, preserve concise model descriptions, and add tests only where they reflect real grain guarantees. For the insured model, unique + not_null on party_insured_id is a good fit. Consider stronger descriptions for user-facing business terms like Ultimate Client.",
+          refs: ["L2_04_SCHEMA_YML_PATTERNS.md", "L2_07_GENERIC_TESTS.md"]
+        },
+        simulation: {
+          baseline: { status: "Likely to Build", confidence: "91%", runtime: "Low", rows: "n/a", joinRisk: "Low", risks: ["YAML syntax appears valid.", "Tests align with likely grain.", "Descriptions could be expanded for governance completeness."], preview: { columns: ["model", "column", "test"], rows: [["mma_party_insured", "party_insured_id", "not_null"], ["mma_party_insured", "party_insured_id", "unique"], ["mma_submission", "submission_id", "not_null"]] } },
+          highRows: { status: "Likely to Build", confidence: "91%", runtime: "Low", rows: "n/a", joinRisk: "Low", risks: ["Config artifact not sensitive to row volume.", "Great candidate to auto-generate from scaffolding."], preview: { columns: ["model", "column", "test"], rows: [["mma_party_insured", "party_insured_id", "not_null"], ["mma_party_insured", "party_insured_id", "unique"], ["mma_submission", "submission_id", "not_null"]] } },
+          fanout: { status: "At Risk", confidence: "74%", runtime: "Low", rows: "n/a", joinRisk: "Medium", risks: ["If upstream grain is not stable, uniqueness test may fail.", "Need to confirm business key assumptions before enforcing strict tests."], preview: { columns: ["model", "column", "test"], rows: [["mma_party_insured", "party_insured_id", "unique ?"], ["mma_party_insured", "party_insured_id", "not_null"], ["mma_submission", "submission_id", "not_null"]] } }
+        },
+        architecture: {
+          confidence: "high confidence",
+          role: "Semantic metadata definition",
+          location: "semantic/models/mma",
+          grain: "Depends on backing model grain; tests assert expected uniqueness",
+          reuse: ["_mma_source.yml", "shared_governance descriptions"],
+          examples: ["_shared_object_schema.yml", "source.yml"],
+          drift: ["Avoid over-testing columns without stable grain evidence."]
+        }
+      },
+
+      "semantic/models/mma/_mma_source.yml": {
+        type: "yml",
+        title: "_mma_source.yml",
+        breadcrumb: ["semantic", "models", "mma", "_mma_source.yml"],
+        content: `version: 2\n\nsources:\n  - name: shared_object\n    schema: axiom_etl_prd_lpl_btl_shared_object\n    tables:\n      - name: v_d_ax_party_insured\n      - name: v_d_ax_party_broker\n      - name: v_d_ax_submission\n      - name: v_d_ax_source_system`,
+        assistant: {
+          prompt: "Validate whether this source wiring is appropriate for semantic models in MMA.",
+          response: "This is aligned with the cross-project source pattern. Semantic models should generally source from curated pipeline outputs rather than raw objects. I would keep the shared_object source centralized here and ensure schema names match the active catalog and environment conventions.",
+          refs: ["L1_ARCHITECTURE.md", "L2_05_SOURCE_YML_PATTERNS.md"]
+        },
+        simulation: {
+          baseline: { status: "Likely to Build", confidence: "89%", runtime: "Low", rows: "n/a", joinRisk: "Low", risks: ["Cross-project source pattern looks correct.", "Schema targeting should be environment-aware.", "Confirm source names remain synchronized with pipeline aliases."], preview: { columns: ["source", "table"], rows: [["shared_object", "v_d_ax_party_insured"], ["shared_object", "v_d_ax_party_broker"], ["shared_object", "v_d_ax_submission"]] } },
+          highRows: { status: "Likely to Build", confidence: "89%", runtime: "Low", rows: "n/a", joinRisk: "Low", risks: ["Source definition itself is stable across row growth."] , preview: { columns: ["source", "table"], rows: [["shared_object", "v_d_ax_party_insured"], ["shared_object", "v_d_ax_party_broker"], ["shared_object", "v_d_ax_submission"]] } },
+          fanout: { status: "At Risk", confidence: "72%", runtime: "Low", rows: "n/a", joinRisk: "Medium", risks: ["Even correct source wiring can mask unstable upstream grain.", "Need join registry support to validate fanout assumptions."], preview: { columns: ["source", "table"], rows: [["shared_object", "v_d_ax_party_insured"], ["shared_object", "v_d_ax_party_broker"], ["shared_object", "v_d_ax_submission"]] } }
+        },
+        architecture: {
+          confidence: "high confidence",
+          role: "Semantic source wiring artifact",
+          location: "semantic/models/mma",
+          grain: "n/a",
+          reuse: ["source.yml", "shared_object outputs"],
+          examples: ["_mma_schema.yml", "source.yml"],
+          drift: ["Do not wire semantic models directly to raw sources when curated shared_object outputs exist."]
+        }
+      },
+
+      "pipeline/models/shared_object/v_d_ax_party_broker.sql": {
+        type: "sql",
+        title: "v_d_ax_party_broker.sql",
+        breadcrumb: ["pipeline", "models", "shared_object", "v_d_ax_party_broker.sql"],
+        content: `SELECT\n    party_broker_id\n  , party_broker_key\n  , broker_name\n  , broker_group\n  , broker_network_group\n  , producing_office_region\n  , source_system_cd\nFROM {{ ref('t_d_ax_party_broker') }}\nWHERE broker_name IS NOT NULL`,
+        assistant: {
+          prompt: "Classify this shared_object model and identify reuse opportunities across products.",
+          response: "This looks like a shared reusable broker dimension in the pipeline/shared_object layer. It should remain broadly reusable and product-neutral. I would position it as a high-reuse dependency for multiple semantic products rather than embedding broker logic separately within MMA or GMR-specific models.",
+          refs: ["L2_03_MODEL_TEMPLATES.md", "architecture/reuse_index.md", "architecture/model_registry.md"]
+        },
+        simulation: {
+          baseline: { status: "Likely to Build", confidence: "93%", runtime: "Low", rows: "80K–120K", joinRisk: "Low", risks: ["Simple ref() dependency likely resolved.", "Output is reusable across products.", "Filter on broker_name should be reviewed for unintended drops."], preview: { columns: ["party_broker_id", "broker_name", "broker_group"], rows: [["455", "AON", "Global Brokers"], ["456", "Marsh", "Global Brokers"], ["457", "WTW", "Strategic"]] } },
+          highRows: { status: "Likely to Build", confidence: "88%", runtime: "Medium", rows: "300K–450K", joinRisk: "Medium", risks: ["Higher volume may make materialization choice more important.", "Potential downstream fanout if joined to submissions without stable keys."], preview: { columns: ["party_broker_id", "broker_name", "broker_group"], rows: [["8455", "AON", "Global Brokers"], ["8456", "Marsh", "Global Brokers"], ["8457", "WTW", "Strategic"]] } },
+          fanout: { status: "At Risk", confidence: "69%", runtime: "Medium", rows: "120K–280K", joinRisk: "High", risks: ["Shared dimensions can cause row growth when joined into submission-level facts.", "Need confirmed key behavior from join registry."], preview: { columns: ["party_broker_id", "broker_name", "broker_group"], rows: [["455", "AON", "Global Brokers"], ["455", "AON", "Global Brokers"], ["456", "Marsh", "Global Brokers"]] } }
+        },
+        architecture: {
+          confidence: "high confidence",
+          role: "Shared reusable dimension / pipeline enrichment",
+          location: "pipeline/models/shared_object",
+          grain: "Likely unique at party_broker_id",
+          reuse: ["mma_party_broker.sql", "future product broker dimensions"],
+          examples: ["v_d_ax_party_insured.sql", "v_d_ax_org_legal_entity.sql"],
+          drift: ["Avoid recreating broker lookups inside individual product folders."]
+        }
+      },
+
+      "pipeline/models/shared_object/v_d_ax_org_legal_entity.sql": {
+        type: "sql",
+        title: "v_d_ax_org_legal_entity.sql",
+        breadcrumb: ["pipeline", "models", "shared_object", "v_d_ax_org_legal_entity.sql"],
+        content: `SELECT\n    org_legal_entity_id\n  , org_legal_entity_key\n  , legal_entity_name\n  , legal_entity_code\n  , region_name\n  , source_system_cd\nFROM {{ ref('t_d_ax_org_legal_entity') }}\nQUALIFY ROW_NUMBER() OVER (PARTITION BY org_legal_entity_key ORDER BY updated_ts DESC) = 1`,
+        assistant: {
+          prompt: "Evaluate the likely grain and any architectural concerns for this shared legal entity model.",
+          response: "The ROW_NUMBER + QUALIFY pattern suggests a deduplicated shared dimension with latest-record semantics. That is a strong fit for pipeline/shared_object. I would preserve the latest-row pattern here so semantic models can consume a stable legal entity dimension instead of reimplementing deduplication downstream.",
+          refs: ["architecture/grain_registry.md", "architecture/pattern_library.md"]
+        },
+        simulation: {
+          baseline: { status: "Likely to Build", confidence: "90%", runtime: "Medium", rows: "5K–12K", joinRisk: "Low", risks: ["Window function cost is acceptable at current size.", "Deduplication supports stable downstream joins.", "Need consistent updated_ts availability."], preview: { columns: ["org_legal_entity_id", "legal_entity_name", "region_name"], rows: [["71", "XL Bermuda Ltd", "Americas"], ["72", "XL Specialty", "Europe"], ["73", "XL Insurance Co", "North America"]] } },
+          highRows: { status: "At Risk", confidence: "76%", runtime: "High", rows: "20K–80K", joinRisk: "Medium", risks: ["Window dedupe becomes heavier with wider history tables.", "Potential need for incremental strategy or upstream pruning."], preview: { columns: ["org_legal_entity_id", "legal_entity_name", "region_name"], rows: [["171", "XL Bermuda Ltd", "Americas"], ["172", "XL Specialty", "Europe"], ["173", "XL Insurance Co", "North America"]] } },
+          fanout: { status: "Likely to Build", confidence: "82%", runtime: "Medium", rows: "5K–12K", joinRisk: "Medium", risks: ["Dimension is stable, but downstream joins could still fan out if keyed incorrectly."], preview: { columns: ["org_legal_entity_id", "legal_entity_name", "region_name"], rows: [["71", "XL Bermuda Ltd", "Americas"], ["72", "XL Specialty", "Europe"], ["73", "XL Insurance Co", "North America"]] } }
+        },
+        architecture: {
+          confidence: "high confidence",
+          role: "Shared deduplicated dimension",
+          location: "pipeline/models/shared_object",
+          grain: "Likely one row per org_legal_entity_key after latest-record dedupe",
+          reuse: ["mma_org_legal_entity.sql", "semantic reporting dimensions"],
+          examples: ["v_d_ax_org_producing_office_region.sql", "v_d_ax_party_broker.sql"],
+          drift: ["Keep latest-record logic here; do not duplicate QUALIFY logic downstream."]
+        }
+      },
+
+      "pipeline/models/mma/mma_t_ax_subm_plcy_americas_metrics.sql": {
+        type: "sql",
+        title: "mma_t_ax_subm_plcy_americas_metrics.sql",
+        breadcrumb: ["pipeline", "models", "mma", "mma_t_ax_subm_plcy_americas_metrics.sql"],
+        content: `SELECT\n    submission_id\n  , policy_symbol\n  , source_system_cd\n  , COUNT(DISTINCT quote_id) AS quote_cnt\n  , SUM(written_premium_amt) AS written_premium_amt\n  , MAX(refresh_dt) AS latest_refresh_dt\nFROM {{ ref('mma_t_d_ax_submission') }}\nGROUP BY\n    submission_id\n  , policy_symbol\n  , source_system_cd`,
+        assistant: {
+          prompt: "Recommend whether this belongs in pipeline or semantic, and identify the nearest canonical pattern.",
+          response: "This is a pipeline aggregate support model. The GROUP BY + metric derivation shape matches a canonical metric-support pattern that should live upstream of semantic exposure. I would keep the aggregation here, validate submission-level grain, and let semantic models consume the result through a thinner presentation layer.",
+          refs: ["L2_03_MODEL_TEMPLATES.md", "architecture/pattern_library.md", "architecture/decision_matrix.md"]
+        },
+        simulation: {
+          baseline: { status: "Likely to Build", confidence: "85%", runtime: "Medium", rows: "90K–180K", joinRisk: "Medium", risks: ["GROUP BY pattern matches pipeline aggregate-support archetype.", "Need stable submission_id + policy_symbol grain.", "Distinct quote count can be expensive on large upstream sets."], preview: { columns: ["submission_id", "policy_symbol", "quote_cnt", "written_premium_amt"], rows: [["12001", "CAS", "3", "1250000"], ["12002", "FIN", "1", "480000"], ["12003", "PRP", "2", "910000"]] } },
+          highRows: { status: "At Risk", confidence: "71%", runtime: "High", rows: "300K–700K", joinRisk: "High", risks: ["Distinct aggregations and wide GROUP BY may push runtime tier higher.", "Potential repeated scans if upstream model is not materialized appropriately.", "Recommend evaluating incremental or persistent intermediate output."], preview: { columns: ["submission_id", "policy_symbol", "quote_cnt", "written_premium_amt"], rows: [["22001", "CAS", "9", "5250000"], ["22002", "FIN", "5", "2480000"], ["22003", "PRP", "7", "3910000"]] } },
+          fanout: { status: "Unlikely to Build", confidence: "62%", runtime: "High", rows: "500K–1.4M", joinRisk: "High", risks: ["Likely grain conflict between submission-level and policy-level dimensions.", "Potential double counting if joined back to non-deduplicated submission lines.", "Preview suppressed by default due to predicted metric inflation risk."], preview: null }
+        },
+        architecture: {
+          confidence: "high confidence",
+          role: "Pipeline aggregate support model",
+          location: "pipeline/models/mma",
+          grain: "Likely one row per submission_id + policy_symbol + source_system_cd",
+          reuse: ["mma_submission.sql", "future semantic metrics exposures"],
+          examples: ["mma_t_d_ax_submission.sql", "mma_t_ax_supp_subm_policy.sql"],
+          drift: ["Do not expose business-facing metrics directly from semantic if this aggregate already exists upstream.", "Watch for policy/submission grain blending."]
+        }
+      },
+
+      "pipeline/models/source.yml": {
+        type: "yml",
+        title: "source.yml",
+        breadcrumb: ["pipeline", "models", "source.yml"],
+        content: `version: 2\n\nsources:\n  - name: axiom_lpl\n    schema: axiom_etl_prd_lpl_btl_src\n    tables:\n      - name: t_ff_xle_snapshot_submission\n      - name: t_ff_xle_snapshot_policy\n      - name: t_ff_xle_snapshot_party\n\n  - name: axiom_spl\n    schema: axiom_etl_prd_spl_btl_src\n    tables:\n      - name: t_spl_policy_transaction`,
+        assistant: {
+          prompt: "Review this pipeline source definition for completeness and architectural fit.",
+          response: "This fits the pipeline layer as the entry point for raw source registration. It should stay generic and catalog-aware, with semantic models consuming curated pipeline outputs instead of these raw tables directly. I would validate naming alignment with the source index and ensure source coverage is sufficient for MMA requirements.",
+          refs: ["schemas/source_index.md", "L1_ARCHITECTURE.md"]
+        },
+        simulation: {
+          baseline: { status: "Likely to Build", confidence: "88%", runtime: "Low", rows: "n/a", joinRisk: "Low", risks: ["Source registration is structurally valid.", "Need complete table list for downstream build coverage.", "Schema names should remain environment-specific."], preview: { columns: ["source", "table"], rows: [["axiom_lpl", "t_ff_xle_snapshot_submission"], ["axiom_lpl", "t_ff_xle_snapshot_policy"], ["axiom_spl", "t_spl_policy_transaction"]] } },
+          highRows: { status: "Likely to Build", confidence: "88%", runtime: "Low", rows: "n/a", joinRisk: "Low", risks: ["Raw source declaration is stable regardless of row volume."] , preview: { columns: ["source", "table"], rows: [["axiom_lpl", "t_ff_xle_snapshot_submission"], ["axiom_lpl", "t_ff_xle_snapshot_policy"], ["axiom_spl", "t_spl_policy_transaction"]] } },
+          fanout: { status: "At Risk", confidence: "70%", runtime: "Low", rows: "n/a", joinRisk: "Medium", risks: ["Fanout risk emerges downstream when raw sources are joined without stable grain contracts."], preview: { columns: ["source", "table"], rows: [["axiom_lpl", "t_ff_xle_snapshot_submission"], ["axiom_lpl", "t_ff_xle_snapshot_policy"], ["axiom_spl", "t_spl_policy_transaction"]] } }
+        },
+        architecture: {
+          confidence: "high confidence",
+          role: "Pipeline source registration artifact",
+          location: "pipeline/models",
+          grain: "n/a",
+          reuse: ["all pipeline products", "source index refresh"],
+          examples: ["_mma_source.yml"],
+          drift: ["Avoid bypassing raw source registration with ad hoc source definitions in product folders."]
+        }
+      },
+
+      ".agent_context/L2/L2_02_NAMING_CONVENTIONS.md": {
+        type: "md",
+        title: "L2_02_NAMING_CONVENTIONS.md",
+        breadcrumb: [".agent_context", "L2", "L2_02_NAMING_CONVENTIONS.md"],
+        content: `# L2_02 Naming Conventions\n\n## File naming\n- semantic exposure models use product-prefixed names\n- shared pipeline views use v_d_ax_* naming\n- intermediate pipeline tables use t_d_ax_* or product-specific t_* naming\n\n## Column naming\n- preserve business-facing output names when required by downstream consumers\n- use stable surrogate keys where available\n- avoid introducing inconsistent aliases across semantic products\n\n## Guardrails\n- do not treat every legacy example as canonical\n- prefer shared_object reuse when equivalent logic already exists`,
+        assistant: {
+          prompt: "Summarize the naming guidance most relevant to the active MMA models.",
+          response: "For MMA, the most relevant rules are: keep semantic models product-prefixed, preserve business-facing column labels where required, and prefer reuse of shared_object artifacts over recreating equivalent logic. Also, treat legacy examples carefully rather than assuming every pattern is canonical.",
+          refs: ["architecture/decision_matrix.md", "architecture/drift_catalog.md"]
+        },
+        simulation: {
+          baseline: { status: "Likely to Build", confidence: "94%", runtime: "Low", rows: "n/a", joinRisk: "Low", risks: ["Standards doc only.", "Useful as reference for code generation and validation.", "No execution risk."], preview: { columns: ["rule", "value"], rows: [["semantic prefix", "mma_*"], ["shared view prefix", "v_d_ax_*"], ["reuse preference", "shared_object first"]] } },
+          highRows: { status: "Likely to Build", confidence: "94%", runtime: "Low", rows: "n/a", joinRisk: "Low", risks: ["Standards unaffected by data volume."], preview: { columns: ["rule", "value"], rows: [["semantic prefix", "mma_*"], ["shared view prefix", "v_d_ax_*"], ["reuse preference", "shared_object first"]] } },
+          fanout: { status: "Likely to Build", confidence: "94%", runtime: "Low", rows: "n/a", joinRisk: "Low", risks: ["Naming docs can still guide drift prevention under risky joins."], preview: { columns: ["rule", "value"], rows: [["semantic prefix", "mma_*"], ["shared view prefix", "v_d_ax_*"], ["reuse preference", "shared_object first"]] } }
+        },
+        architecture: {
+          confidence: "high confidence",
+          role: "Foundational standards artifact",
+          location: ".agent_context/L2",
+          grain: "n/a",
+          reuse: ["D3 Pipeline Build", "D4 Semantic Build", "D6 Validation"],
+          examples: ["L2_03_MODEL_TEMPLATES.md", "L2_04_SCHEMA_YML_PATTERNS.md"],
+          drift: ["Standards docs should override legacy outliers when examples conflict."]
+        }
+      },
+
+      ".agent_context/architecture/pattern_library.md": {
+        type: "md",
+        title: "pattern_library.md",
+        breadcrumb: [".agent_context", "architecture", "pattern_library.md"],
+        content: `# Pattern Library\n\n## Canonical patterns\n\n### Pipeline aggregate support\n- upstream inputs: submission-level intermediates\n- shape: GROUP BY + metric derivation\n- materialization: table or persisted intermediate\n- downstream: semantic exposure models\n\n### Shared reusable dimension\n- upstream inputs: stable t_d_ax_* dimension table\n- shape: light projection + optional dedupe\n- materialization: view\n- downstream: multiple products\n\n### Semantic thin exposure\n- upstream inputs: curated shared_object or product pipeline outputs\n- shape: light rename, business-friendly column selection\n- materialization: table/view per product use case`,
+        assistant: {
+          prompt: "Use the pattern library to explain the best scaffold for the active file.",
+          response: "The active file most closely maps to one of three canonical patterns: pipeline aggregate support, shared reusable dimension, or semantic thin exposure. I’m using that classification to drive placement guidance, likely materialization, and the kind of tests or YAML expected around the model.",
+          refs: ["architecture/model_registry.md", "architecture/decision_matrix.md"]
+        },
+        simulation: {
+          baseline: { status: "Likely to Build", confidence: "95%", runtime: "Low", rows: "n/a", joinRisk: "Low", risks: ["Pattern artifact loaded successfully.", "Supports architectural scaffolding recommendations."], preview: { columns: ["pattern", "shape"], rows: [["Pipeline aggregate support", "GROUP BY + metrics"], ["Shared reusable dimension", "light projection + dedupe"], ["Semantic thin exposure", "rename + select"]] } },
+          highRows: { status: "Likely to Build", confidence: "95%", runtime: "Low", rows: "n/a", joinRisk: "Low", risks: ["Pattern artifact remains stable across scenarios."], preview: { columns: ["pattern", "shape"], rows: [["Pipeline aggregate support", "GROUP BY + metrics"], ["Shared reusable dimension", "light projection + dedupe"], ["Semantic thin exposure", "rename + select"]] } },
+          fanout: { status: "Likely to Build", confidence: "95%", runtime: "Low", rows: "n/a", joinRisk: "Low", risks: ["Pattern library helps surface fanout risk archetypes."], preview: { columns: ["pattern", "shape"], rows: [["Pipeline aggregate support", "GROUP BY + metrics"], ["Shared reusable dimension", "light projection + dedupe"], ["Semantic thin exposure", "rename + select"]] } }
+        },
+        architecture: {
+          confidence: "high confidence",
+          role: "Foundational architecture reference",
+          location: ".agent_context/architecture",
+          grain: "n/a",
+          reuse: ["all D3/D4 design decisions", "architecture guidance panel"],
+          examples: ["decision_matrix.md", "reuse_index.md"],
+          drift: ["Patterns should guide recommendations without canonizing every existing implementation."]
+        }
+      }
+    };
+
+    const tree = [
+      { type: 'folder', label: 'semantic', path: 'semantic', children: [
+        { type: 'folder', label: 'models', path: 'semantic/models', children: [
+          { type: 'folder', label: 'mma', path: 'semantic/models/mma', children: [
+            { type: 'file', label: 'mma_party_insured.sql', path: 'semantic/models/mma/mma_party_insured.sql' },
+            { type: 'file', label: '_mma_schema.yml', path: 'semantic/models/mma/_mma_schema.yml' },
+            { type: 'file', label: '_mma_source.yml', path: 'semantic/models/mma/_mma_source.yml' }
+          ] }
+        ] }
+      ] },
+      { type: 'folder', label: 'pipeline', path: 'pipeline', children: [
+        { type: 'folder', label: 'models', path: 'pipeline/models', children: [
+          { type: 'file', label: 'source.yml', path: 'pipeline/models/source.yml' },
+          { type: 'folder', label: 'shared_object', path: 'pipeline/models/shared_object', children: [
+            { type: 'file', label: 'v_d_ax_party_broker.sql', path: 'pipeline/models/shared_object/v_d_ax_party_broker.sql' },
+            { type: 'file', label: 'v_d_ax_org_legal_entity.sql', path: 'pipeline/models/shared_object/v_d_ax_org_legal_entity.sql' }
+          ] },
+          { type: 'folder', label: 'mma', path: 'pipeline/models/mma', children: [
+            { type: 'file', label: 'mma_t_ax_subm_plcy_americas_metrics.sql', path: 'pipeline/models/mma/mma_t_ax_subm_plcy_americas_metrics.sql' }
+          ] }
+        ] }
+      ] },
+      { type: 'folder', label: '.agent_context', path: '.agent_context', children: [
+        { type: 'folder', label: 'L2', path: '.agent_context/L2', children: [
+          { type: 'file', label: 'L2_02_NAMING_CONVENTIONS.md', path: '.agent_context/L2/L2_02_NAMING_CONVENTIONS.md' }
+        ] },
+        { type: 'folder', label: 'architecture', path: '.agent_context/architecture', children: [
+          { type: 'file', label: 'pattern_library.md', path: '.agent_context/architecture/pattern_library.md' }
+        ] }
+      ] }
+    ];
+
+    const workflowSteps = [
+      { id: 'D1', label: 'Product Intake', status: 'done', summary: 'requirements analyzed', focusFiles: ['.agent_context/L2/L2_02_NAMING_CONVENTIONS.md'] },
+      { id: 'D2', label: 'Source Mapping', status: 'done', summary: 'source candidates validated', focusFiles: ['pipeline/models/source.yml', 'semantic/models/mma/_mma_source.yml'] },
+      { id: 'D3', label: 'Pipeline Build', status: 'active', summary: 'building aggregate and shared models', focusFiles: ['pipeline/models/mma/mma_t_ax_subm_plcy_americas_metrics.sql', 'pipeline/models/shared_object/v_d_ax_party_broker.sql'] },
+      { id: 'D4', label: 'Semantic Build', status: 'pending', summary: 'thin business exposures', focusFiles: ['semantic/models/mma/mma_party_insured.sql', 'semantic/models/mma/_mma_schema.yml'] },
+      { id: 'D5', label: 'Config Integration', status: 'pending', summary: 'project wiring and config', focusFiles: ['pipeline/models/source.yml'] },
+      { id: 'D6', label: 'Validation', status: 'pending', summary: 'checks and issues to fix', focusFiles: ['semantic/models/mma/_mma_schema.yml', '.agent_context/L2/L2_02_NAMING_CONVENTIONS.md'] }
+    ];
+
+    const bottomPanels = {
+      Output: (state) => `[${state.activeStep.id}] ${state.activeStep.label}\n[Info] Active file: ${state.activeFile}\n[Info] Scenario: ${state.scenario}\n[Success] Loaded contextual references for ${files[state.activeFile].title}\n${files[state.activeFile].simulation[state.scenario].status === 'Unlikely to Build' ? '[Warning] Preview suppressed due to predicted blocker surface' : '[Success] Simulated result preview generated'}\n[Hint] Architecture guidance refreshed using pattern + reuse registries`,
+      Terminal: (state) => `PS C:\\repos\\BTL_SEMANTIC_LAYER> agent run ${state.activeStep.id.toLowerCase()} --product mma\nReading .agent_context...\nLoading ${files[state.activeFile].title}\nScanning refs(), source(), and related YAML artifacts...\nComputing architectural classification...\nDone.`,
+      Problems: (state) => {
+        const issues = files[state.activeFile].simulation[state.scenario].risks;
+        return issues.map((x, i) => `${i + 1}. ${x}`).join('\n');
+      },
+      'AI Insights': (state) => `Recommended role: ${files[state.activeFile].architecture.role}\nRecommended location: ${files[state.activeFile].architecture.location}\nLikely grain: ${files[state.activeFile].architecture.grain}\nReuse candidates: ${files[state.activeFile].architecture.reuse.join(', ')}`
+    };
+
+    const state = {
+      openTabs: ['semantic/models/mma/mma_party_insured.sql'],
+      activeFile: 'semantic/models/mma/mma_party_insured.sql',
+      expanded: new Set(['semantic','semantic/models','semantic/models/mma','pipeline','pipeline/models','pipeline/models/shared_object','pipeline/models/mma','.agent_context','.agent_context/L2','.agent_context/architecture']),
+      bottomTab: 'Output',
+      activeStepId: 'D3',
+      scenario: 'baseline',
+      filter: ''
+    };
+
+    const els = {
+      sidebarBody: document.getElementById('sidebarBody'),
+      tabs: document.getElementById('tabs'),
+      breadcrumb: document.getElementById('breadcrumb'),
+      gutter: document.getElementById('gutter'),
+      code: document.getElementById('code'),
+      searchInput: document.getElementById('searchInput'),
+      workflowList: document.getElementById('workflowList'),
+      promptText: document.getElementById('promptText'),
+      responseText: document.getElementById('responseText'),
+      refs: document.getElementById('refs'),
+      assistantState: document.getElementById('assistantState'),
+      buildStatusPill: document.getElementById('buildStatusPill'),
+      confidenceValue: document.getElementById('confidenceValue'),
+      runtimeValue: document.getElementById('runtimeValue'),
+      rowsValue: document.getElementById('rowsValue'),
+      joinRiskValue: document.getElementById('joinRiskValue'),
+      sourceMetrics: document.getElementById('sourceMetrics'),
+      risksList: document.getElementById('risksList'),
+      previewWrap: document.getElementById('previewWrap'),
+      roleText: document.getElementById('roleText'),
+      locationText: document.getElementById('locationText'),
+      grainText: document.getElementById('grainText'),
+      reuseText: document.getElementById('reuseText'),
+      examplesText: document.getElementById('examplesText'),
+      driftText: document.getElementById('driftText'),
+      archConfidence: document.getElementById('archConfidence'),
+      bottomTabs: document.getElementById('bottomTabs'),
+      bottomContent: document.getElementById('bottomContent'),
+      activeTitle: document.getElementById('activeTitle'),
+      activeStepTag: document.getElementById('activeStepTag'),
+      openCount: document.getElementById('openCount')
+    };
+
+    function activeStep() {
+      return workflowSteps.find(s => s.id === state.activeStepId) || workflowSteps[0];
+    }
+
+    function iconFor(path) {
+      if (path.endsWith('.sql')) return '<span class="icon-sql">🧾</span>';
+      if (path.endsWith('.yml')) return '<span class="icon-yml">🟠</span>';
+      if (path.endsWith('.md')) return '<span class="icon-md">📘</span>';
+      return '<span class="icon-folder">📁</span>';
+    }
+
+    function shouldShowNode(node) {
+      const q = state.filter.trim().toLowerCase();
+      if (!q) return true;
+      if (node.label.toLowerCase().includes(q) || node.path.toLowerCase().includes(q)) return true;
+      return (node.children || []).some(shouldShowNode);
+    }
+
+    function renderTree() {
+      const body = [];
+      const openEditorsHeader = state.openTabs.map(path => ({ type: 'file', label: files[path].title, path }));
+      openEditorsHeader.forEach((node) => {
+        body.push(`<div class="tree-row indent-0 ${state.activeFile === node.path ? 'active' : ''}" data-open-file="${node.path}">${iconFor(node.path)}<span class="label">${node.label}</span></div>`);
+      });
+      body.push('<div class="section-title"><span>Project</span><span class="tiny">tree</span></div>');
+
+      function walk(nodes, depth) {
+        nodes.forEach(node => {
+          if (!shouldShowNode(node)) return;
+          if (node.type === 'folder') {
+            const isOpen = state.expanded.has(node.path) || (!!state.filter && shouldShowNode(node));
+            body.push(`<div class="tree-row indent-${Math.min(depth,5)}" data-toggle="${node.path}"><span class="caret">${isOpen ? '▾' : '▸'}</span>${iconFor(node.path)}<span class="label">${node.label}</span></div>`);
+            if (isOpen) walk(node.children || [], depth + 1);
+          } else {
+            body.push(`<div class="tree-row indent-${Math.min(depth,5)} ${state.activeFile === node.path ? 'active' : ''}" data-open-file="${node.path}">${iconFor(node.path)}<span class="label">${node.label}</span></div>`);
+          }
+        });
+      }
+      walk(tree, 0);
+      els.sidebarBody.innerHTML = body.join('');
+      els.openCount.textContent = String(state.openTabs.length);
+      els.sidebarBody.querySelectorAll('[data-toggle]').forEach(el => {
+        el.onclick = () => {
+          const p = el.dataset.toggle;
+          if (state.expanded.has(p)) state.expanded.delete(p); else state.expanded.add(p);
+          renderTree();
+        };
+      });
+      els.sidebarBody.querySelectorAll('[data-open-file]').forEach(el => {
+        el.onclick = () => openFile(el.dataset.openFile);
+      });
+    }
+
+    function renderWorkflow() {
+      const html = workflowSteps.map(step => `
+        <div class="workflow-step status-${step.status} ${step.id === state.activeStepId ? 'active' : ''}" data-step="${step.id}">
+          <div class="workflow-icon">${step.status === 'done' ? '✓' : step.status === 'active' ? '▶' : '○'}</div>
+          <div>
+            <div>${step.id}: ${step.label}</div>
+            <div class="workflow-meta">${step.summary}</div>
+          </div>
+          <div class="tiny">${step.focusFiles.length} file${step.focusFiles.length > 1 ? 's' : ''}</div>
+        </div>`).join('');
+      els.workflowList.innerHTML = html;
+      els.workflowList.querySelectorAll('[data-step]').forEach(el => {
+        el.onclick = () => activateStep(el.dataset.step);
+      });
+      els.activeStepTag.textContent = `${activeStep().id} ${activeStep().label}`;
+    }
+
+    function openFile(path) {
+      if (!state.openTabs.includes(path)) state.openTabs.push(path);
+      state.activeFile = path;
+      renderAll();
+      simulateThinking();
+    }
+
+    function closeTab(path) {
+      const idx = state.openTabs.indexOf(path);
+      if (idx === -1) return;
+      state.openTabs.splice(idx, 1);
+      if (state.activeFile === path) state.activeFile = state.openTabs[Math.max(0, idx - 1)] || 'semantic/models/mma/mma_party_insured.sql';
+      if (!state.openTabs.length) state.openTabs = [state.activeFile];
+      renderAll();
+    }
+
+    function activateStep(id) {
+      state.activeStepId = id;
+      workflowSteps.forEach(step => {
+        step.status = step.id === id ? 'active' : workflowSteps.indexOf(step) < workflowSteps.findIndex(s => s.id === id) ? 'done' : 'pending';
+      });
+      const step = activeStep();
+      if (step.focusFiles.length) {
+        step.focusFiles.forEach(path => { if (!state.openTabs.includes(path)) state.openTabs.push(path); });
+        state.activeFile = step.focusFiles[0];
+      }
+      renderAll();
+      simulateThinking();
+    }
+
+    function renderTabs() {
+      els.tabs.innerHTML = state.openTabs.map(path => `
+        <div class="tab ${state.activeFile === path ? 'active' : ''}" data-tab="${path}">
+          ${iconFor(path)}<span>${files[path].title}</span><span class="close" data-close="${path}">✕</span>
+        </div>`).join('');
+      els.tabs.querySelectorAll('[data-tab]').forEach(el => el.onclick = (e) => {
+        if (e.target.dataset.close) return;
+        openFile(el.dataset.tab);
+      });
+      els.tabs.querySelectorAll('[data-close]').forEach(el => el.onclick = (e) => {
+        e.stopPropagation();
+        closeTab(el.dataset.close);
+      });
+    }
+
+    function renderBreadcrumb() {
+      const f = files[state.activeFile];
+      els.breadcrumb.innerHTML = f.breadcrumb.map((c, i) => `<span class="crumb ${i === f.breadcrumb.length - 1 ? 'active' : ''}">${c}</span>${i < f.breadcrumb.length - 1 ? '<span>›</span>' : ''}`).join('');
+      els.activeTitle.textContent = state.activeFile;
+    }
+
+    function syntaxHighlight(text, type) {
+      const esc = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      if (type === 'sql') {
+        return esc
+          .replace(/(--.*?$)/gm, '<span class="cm">$1</span>')
+          .replace(/\b(SELECT|FROM|WHERE|CASE|WHEN|THEN|END|AS|GROUP BY|GROUP|BY|SUM|COUNT|DISTINCT|MAX|QUALIFY|ROW_NUMBER|OVER|PARTITION|ORDER)\b/g, '<span class="kw">$1</span>')
+          .replace(/\b(ref|source)\b/g, '<span class="fn">$1</span>')
+          .replace(/'([^']*)'/g, '<span class="str">&#39;$1&#39;</span>')
+          .replace(/\b(\d+)\b/g, '<span class="num">$1</span>');
+      }
+      return esc
+        .replace(/(#.*?$)/gm, '<span class="cm">$1</span>')
+        .replace(/^(\s*-?\s*[A-Za-z_][A-Za-z0-9_\-]*:)/gm, '<span class="name">$1</span>')
+        .replace(/\b(version|models|sources|schema|tables|columns|description|tests|name)\b/g, '<span class="kw">$1</span>')
+        .replace(/'([^']*)'/g, '<span class="str">&#39;$1&#39;</span>');
+    }
+
+    function renderCode() {
+      const f = files[state.activeFile];
+      const lines = f.content.split('\n');
+      els.gutter.innerHTML = lines.map((_, i) => `<div class="line">${i + 1}</div>`).join('');
+      els.code.innerHTML = lines.map(line => `<div class="line">${syntaxHighlight(line || ' ', f.type)}</div>`).join('');
+    }
+
+    function renderAssistant() {
+      const f = files[state.activeFile];
+      els.promptText.textContent = f.assistant.prompt;
+      els.responseText.textContent = f.assistant.response;
+      els.refs.innerHTML = f.assistant.refs.map(r => `<span class="pill">${r}</span>`).join('');
+    }
+
+    function renderSimulation() {
+      const f = files[state.activeFile];
+      const sim = f.simulation[state.scenario];
+      els.buildStatusPill.textContent = sim.status;
+      els.buildStatusPill.className = 'pill ' + (sim.status === 'Likely to Build' ? 'good' : sim.status === 'At Risk' ? 'warn' : 'risk');
+      els.confidenceValue.textContent = sim.confidence;
+      els.runtimeValue.textContent = sim.runtime;
+      els.rowsValue.textContent = sim.rows;
+      els.joinRiskValue.textContent = sim.joinRisk;
+
+      const sourceRows = (f.breadcrumb.includes('semantic')
+        ? [
+            ['shared_object.v_d_ax_party_insured', 'rows ~ 210K', 'grain: party'],
+            ['shared_object.v_d_ax_submission', 'rows ~ 90K', 'grain: submission']
+          ]
+        : [
+            ['axiom_lpl.t_ff_xle_snapshot_submission', 'rows ~ 2.1M', 'grain: submission snapshot'],
+            ['axiom_lpl.t_ff_xle_snapshot_policy', 'rows ~ 6.4M', 'grain: policy transaction']
+          ]);
+
+      els.sourceMetrics.innerHTML = sourceRows.map(r => `<div class="source-row"><div><div>${r[0]}</div><div class="tiny">${r[2]}</div></div><div class="tiny">${r[1]}</div></div>`).join('');
+      els.risksList.innerHTML = sim.risks.map(r => `<div class="risk-row"><span>${r}</span></div>`).join('');
+
+      if (!sim.preview) {
+        els.previewWrap.innerHTML = `<div class="assistant-msg ai"><div>Preview suppressed because the model is predicted as <strong>${sim.status}</strong>.</div><div class="tiny" style="margin-top:8px;">You can still use the scenario controls to inspect likely blockers first.</div></div>`;
+      } else {
+        els.previewWrap.innerHTML = `
+          <div class="tiny" style="margin-bottom:8px;">AI-projected output using local patterns + cached source assumptions</div>
+          <table class="preview-table">
+            <thead><tr>${sim.preview.columns.map(c => `<th>${c}</th>`).join('')}</tr></thead>
+            <tbody>${sim.preview.rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
+          </table>`;
+      }
+
+      document.querySelectorAll('.seg-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.scenario === state.scenario);
+      });
+    }
+
+    function renderArchitecture() {
+      const a = files[state.activeFile].architecture;
+      els.archConfidence.textContent = a.confidence;
+      els.roleText.textContent = a.role;
+      els.locationText.textContent = a.location;
+      els.grainText.textContent = a.grain;
+      els.reuseText.innerHTML = a.reuse.map(x => `<span class="pill">${x}</span>`).join(' ');
+      els.examplesText.innerHTML = a.examples.map(x => `<span class="pill">${x}</span>`).join(' ');
+      els.driftText.innerHTML = a.drift.map(x => `<div class="assumption-row"><span>${x}</span></div>`).join('');
+    }
+
+    function renderBottom() {
+      els.bottomTabs.innerHTML = Object.keys(bottomPanels).map(name => `<div class="bottom-tab ${state.bottomTab === name ? 'active' : ''}" data-bottom="${name}">${name}</div>`).join('');
+      els.bottomTabs.querySelectorAll('[data-bottom]').forEach(el => el.onclick = () => {
+        state.bottomTab = el.dataset.bottom;
+        renderBottom();
+      });
+      els.bottomContent.textContent = bottomPanels[state.bottomTab]({ activeFile: state.activeFile, activeStep: activeStep(), scenario: state.scenario });
+    }
+
+    function simulateThinking() {
+      els.assistantState.style.visibility = 'visible';
+      clearTimeout(simulateThinking._timer);
+      simulateThinking._timer = setTimeout(() => {
+        els.assistantState.style.visibility = 'hidden';
+      }, 900);
+    }
+
+    function renderAll() {
+      renderTree();
+      renderWorkflow();
+      renderTabs();
+      renderBreadcrumb();
+      renderCode();
+      renderAssistant();
+      renderSimulation();
+      renderArchitecture();
+      renderBottom();
+    }
+
+    els.searchInput.addEventListener('input', (e) => {
+      state.filter = e.target.value;
+      renderTree();
+    });
+
+    document.querySelectorAll('.seg-btn').forEach(btn => btn.addEventListener('click', () => {
+      state.scenario = btn.dataset.scenario;
+      renderSimulation();
+      renderBottom();
+      simulateThinking();
+    }));
+
+    renderAll();
+    simulateThinking();
+  </script>
+</body>
+</html>
