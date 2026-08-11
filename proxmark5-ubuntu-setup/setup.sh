@@ -1,99 +1,64 @@
 #!/usr/bin/env bash
 #
-# Proxmark5 native-Ubuntu setup helper.
-# Idempotent: installs deps, clones/updates the Iceman firmware, sets PLATFORM=PM3RDV4,
-# builds, installs udev rules, and adds you to the dialout group.
+# Proxmark5 native-Ubuntu HOST PREP helper.
 #
-# It deliberately STOPS before flashing. Flashing is the one irreversible step and must be
-# run by hand once the board is connected — see the end of this script for the command.
+# IMPORTANT: This does NOT clone, build, or flash any firmware.
+# The Proxmark5 is an Artery AT32F435 (Cortex-M4) + GOWIN FPGA board. The stock
+# RfidResearchGroup/proxmark3 firmware is built for the legacy Atmel AT91SAM7 + Xilinx
+# architecture and will NOT run on a PM5 — do not flash it. Get the PM5-specific client
+# and firmware from the vendor (see README.md).
 #
-# Verified against RfidResearchGroup/proxmark3 master on 2026-08-11.
+# This script only prepares the Linux host: serial permissions + ModemManager. Those steps
+# are firmware-independent and safe.
 
 set -euo pipefail
 
-REPO_URL="https://github.com/RfidResearchGroup/proxmark3.git"
-SRC_DIR="${PM3_SRC_DIR:-$HOME/proxmark3}"
-PLATFORM="PM3RDV4"   # No PM5 target exists; PM5 is RDV4-firmware compatible.
-
-info()  { printf '\033[1;34m[*]\033[0m %s\n' "$*"; }
-warn()  { printf '\033[1;33m[!]\033[0m %s\n' "$*"; }
+info() { printf '\033[1;34m[*]\033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33m[!]\033[0m %s\n' "$*"; }
 
 if [[ $EUID -eq 0 ]]; then
   warn "Run this as your normal user, not root (it uses sudo where needed)."
   exit 1
 fi
 
-# --- 1. Dependencies -------------------------------------------------------------------
-info "Installing build dependencies..."
-sudo apt update
-DEPS=(
-  git ca-certificates build-essential pkg-config libreadline-dev
-  gcc-arm-none-eabi libnewlib-dev qt6-base-dev libbz2-dev liblz4-dev
-  zlib1g-dev libbluetooth-dev libpython3-dev libssl-dev libgd-dev
-)
-if ! sudo apt install --no-install-recommends -y "${DEPS[@]}"; then
-  warn "apt failed. On newer distros gcc-arm-none-eabi and libnewlib-dev can conflict."
-  warn "Retrying with picolibc-arm-none-eabi in place of libnewlib-dev..."
-  DEPS=( "${DEPS[@]/libnewlib-dev/picolibc-arm-none-eabi}" )
-  sudo apt install --no-install-recommends -y "${DEPS[@]}"
-fi
+# --- Build/runtime dependencies for a PM5 client ---------------------------------------
+# (Harmless to install even before you have the vendor client; these are the usual
+# Proxmark client deps on Debian/Ubuntu.)
+info "Installing common client dependencies..."
+sudo apt update || warn "apt update failed (lock held by another process?) — continuing"
+sudo apt install --no-install-recommends -y \
+  git ca-certificates build-essential pkg-config libreadline-dev \
+  qt6-base-dev libbz2-dev liblz4-dev zlib1g-dev libbluetooth-dev \
+  libpython3-dev libssl-dev libgd-dev
 
-# --- 2. Clone / update -----------------------------------------------------------------
-if [[ -d "$SRC_DIR/.git" ]]; then
-  info "Updating existing checkout at $SRC_DIR ..."
-  git -C "$SRC_DIR" pull --ff-only
-else
-  info "Cloning firmware into $SRC_DIR ..."
-  git clone "$REPO_URL" "$SRC_DIR"
-fi
-cd "$SRC_DIR"
-
-# --- 3. Platform selection -------------------------------------------------------------
-info "Setting PLATFORM=$PLATFORM in Makefile.platform ..."
-if [[ ! -f Makefile.platform ]]; then
-  cp Makefile.platform.sample Makefile.platform
-fi
-# Replace any existing uncommented PLATFORM= line, else append one.
-if grep -qE '^\s*PLATFORM\s*=' Makefile.platform; then
-  sed -i -E "s|^\s*PLATFORM\s*=.*|PLATFORM=$PLATFORM|" Makefile.platform
-else
-  printf 'PLATFORM=%s\n' "$PLATFORM" >> Makefile.platform
-fi
-grep -E '^PLATFORM=' Makefile.platform
-
-# --- 4. Build --------------------------------------------------------------------------
-info "Building (make clean && make)..."
-make clean
-make -j"$(nproc)"
-
-# --- 5. Install + permissions ----------------------------------------------------------
-info "Installing (udev rules + client on PATH)..."
-sudo make install
+# --- Serial permissions ----------------------------------------------------------------
 if ! id -nG "$USER" | grep -qw dialout; then
   info "Adding $USER to the dialout group..."
   sudo usermod -aG dialout "$USER"
   warn "Log out and back in for the dialout group change to take effect."
+else
+  info "Already in the dialout group."
 fi
 
-# ModemManager can grab /dev/ttyACM0 during flashing.
+# --- ModemManager (grabs /dev/ttyACM* and interferes) ----------------------------------
 if systemctl is-active --quiet ModemManager 2>/dev/null; then
-  warn "ModemManager is active and may grab the serial port."
-  warn "If the client can't connect, run: sudo systemctl stop ModemManager"
+  info "Stopping ModemManager (it grabs the serial port)..."
+  sudo systemctl stop ModemManager
+  warn "To stop it permanently: sudo systemctl disable ModemManager"
+else
+  info "ModemManager is not active."
 fi
 
-cat <<EOF
+cat <<'EOF'
 
-\033[1;32mBuild + install complete.\033[0m
+Host prep complete.
 
-Next steps (run by hand, with the Proxmark5 plugged in):
+Next steps (NOT handled by this script — see README.md):
+  1. Get the Proxmark5-specific client + firmware from the vendor
+     (proxmark.com/proxmark-news/proxmark5, proxmark5.com, your reseller,
+      or a PM5 repo/branch under github.com/RfidResearchGroup).
+  2. Plug the PM5 into its Port 1 (client) USB-C; confirm: ls -l /dev/ttyACM*
+  3. Run the PM5 client and verify with `hw version`.
 
-  cd "$SRC_DIR"
-  ./pm3-flash-all          # flash bootloader + fullimage (irreversible; only with the board connected)
-  ./pm3                    # launch the client
-
-Inside the client, verify before touching any cards:
-
-  hw status
-  hw version               # <-- capture this output
-
+Do NOT build/flash RfidResearchGroup/proxmark3 stock firmware onto a PM5.
 EOF

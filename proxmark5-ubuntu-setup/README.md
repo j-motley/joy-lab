@@ -1,111 +1,91 @@
 # Proxmark5 — Native Ubuntu / Linux Setup
 
-Corrected continuation of setup notes originally drafted in a Windows Claude Code session
-(2026-08-10) and verified against the official RfidResearchGroup/proxmark3 repo on 2026-08-11.
+Updated 2026-08-11 after hands-on setup on Ubuntu 26.04.
 
-**Hardware:** Proxmark5 (RFID Research Group / Iceman, announced 2026-05-12). It keeps
-Proxmark3 RDV4 firmware compatibility and adds extended-range / UHF-ready hardware.
-**Platform decision:** native / dual-boot Linux (not WSL) — USB is plug-and-play at
-`/dev/ttyACM0`.
-
-> **Heads-up on availability:** general hardware availability was announced as late 2026 /
-> early 2027. If you have an early-bird or dev unit, its firmware may be ahead of the public
-> `master` branch — always trust `hw version` output over any written doc.
-
-Goals, in order: LF (125 kHz) → HF/NFC (13.56 MHz) → UHF → Flipper Zero pairing.
+> ## ⚠️ Read this first — the important correction
+>
+> **The Proxmark5 is NOT a Proxmark3, and stock RfidResearchGroup/proxmark3 firmware will
+> not run on it.** The genuine PM5 is a ground-up redesign built on an **Artery AT32F435**
+> (288 MHz ARM Cortex-M4, 1 MB flash) paired with a **GOWIN FPGA**. The classic Proxmark3
+> line — including the RDV4 — uses an **Atmel AT91SAM7** (ARM7TDMI) with a **Xilinx** FPGA.
+> Those are different CPU families and different FPGAs; the stock firmware is binary-incompatible.
+>
+> The marketing phrase *"PM5 keeps Proxmark3 RDV4 firmware compatibility"* does **not** mean
+> "flash stock RDV4 `master`." It refers to feature/workflow parity, not a flashable image.
+>
+> **Do not build and flash `RfidResearchGroup/proxmark3` onto a PM5.** Every attempt fails
+> anyway (wrong size, `NACK` lock errors, "bootloader doesn't understand" warnings) — those
+> failures are protective. Use the **PM5-specific client and firmware** from the vendor.
 
 ---
 
-## 1. Dependencies (Debian / Ubuntu)
+## How to confirm what you have
+
+- **Main MCU marking `AT32F435...`** → genuine Proxmark5 (Artery Cortex-M4). The classic
+  Proxmark3/RDV4 would read `AT91SAM7S256` or `AT91SAM7S512`.
+- **Two USB-C ports** → PM5 (Port 1 = client/host, Port 2 = switchable host). RDV4 has one
+  USB-C; a generic "Easy" clone has a single micro-USB.
+- `lsusb` shows `9ac4:4b8f ... ProxMark-3 RFID Instrument` for all of them (shared USB ID),
+  so that alone does **not** distinguish models.
+
+## Getting the correct PM5 software
+
+The PM5 ships with working factory firmware, so to start you mainly need the **matching PM5
+client** — then connect and use it. Sources (reachable from a normal network; the notes
+above were written where these domains were blocked):
+
+- **Hacker Warehouse** product page / knowledgebase / support (if that's your reseller) —
+  they ship the device and have the exact procedure.
+- **proxmark.com/proxmark-news/proxmark5/** and **proxmark5.com** — official PM5 pages with
+  firmware/client downloads and instructions.
+- **github.com/RfidResearchGroup** — look for a PM5-specific repository or branch (the
+  default `proxmark3` repo is the legacy AT91SAM7 codebase, not the PM5 one).
+
+When switching or updating firmware on the PM5, follow the vendor's PM5 procedure — not the
+Proxmark3 `pm3-flash-all` flow in the old notes.
+
+---
+
+## Host prep that IS valid on Linux (firmware-independent)
+
+These steps apply regardless of which client you end up running:
 
 ```bash
-sudo apt update
-sudo apt install --no-install-recommends \
-  git ca-certificates build-essential pkg-config libreadline-dev \
-  gcc-arm-none-eabi libnewlib-dev qt6-base-dev libbz2-dev liblz4-dev \
-  zlib1g-dev libbluetooth-dev libpython3-dev libssl-dev libgd-dev
+# 1. Serial + permissions
+sudo usermod -aG dialout "$USER"      # then log out / back in
+groups | grep -o dialout              # verify
+
+# 2. ModemManager grabs /dev/ttyACM* and interferes — stop (or mask) it
+sudo systemctl stop ModemManager
+# sudo systemctl disable ModemManager # optional, for a dedicated pentest laptop
+
+# 3. Confirm the device enumerates (plug into the Port 1 / client USB-C)
+ls -l /dev/ttyACM*                    # expect /dev/ttyACM0
 ```
 
-Notes:
-- `libnewlib-dev` is correct (this is the documented package — do **not** substitute
-  `libnewlib-arm-none-eabi`).
-- On very recent distros, `gcc-arm-none-eabi` and `libnewlib-dev` can conflict. If apt
-  refuses the install, replace `libnewlib-dev` with `picolibc-arm-none-eabi`.
-- Qt (`qt6-base-dev`) is only needed for the optional GUI plot window; `qtbase5-dev` (Qt5)
-  also works if that is what your release ships.
+`run setup.sh` in this folder to do the host prep (deps + dialout + ModemManager) only. It
+intentionally does **not** clone/build/flash any firmware, because the correct PM5 image
+comes from the vendor.
 
-## 2. Clone + pick platform
+## Safety notes
 
-```bash
-git clone https://github.com/RfidResearchGroup/proxmark3.git
-cd proxmark3
-cp Makefile.platform.sample Makefile.platform
-```
+- Only read/write tags and cards you own or are authorized to test.
+- Never interrupt any bootloader/bootrom write. A failed bootrom write can require hardware
+  recovery (JTAG/SWD).
+- If in doubt about a firmware image's target hardware, **don't flash it** — confirm the
+  chip/FPGA first.
 
-Edit `Makefile.platform` and set:
+## What went wrong the first time (so nobody repeats it)
 
-```
-PLATFORM=PM3RDV4
-```
-
-**There is no `PM5` platform target** — the only valid options are `PM3RDV4`, `PM3GENERIC`,
-`PM3ICOPYX`, and `PM3ULTIMATE`. Because the Proxmark5 is RDV4-firmware compatible, `PM3RDV4`
-is the correct choice. Confirm after flashing with `hw version`.
-
-## 3. Build
-
-```bash
-make clean && make -j"$(nproc)"
-```
-
-## 4. Permissions
-
-```bash
-sudo make install            # installs udev rules and puts pm3 tools on PATH
-sudo usermod -aG dialout "$USER"
-```
-
-Then **log out and back in** for the group change to take effect.
-
-Gotcha: ModemManager may grab the serial port. If the client can't connect:
-
-```bash
-sudo systemctl stop ModemManager      # or: sudo systemctl mask ModemManager
-```
-
-## 5. Connect, flash, verify
-
-```bash
-# from the proxmark3 build directory; device enumerates as /dev/ttyACM0
-./pm3-flash-all              # flash bootloader + fullimage
-./pm3                        # auto-detects /dev/ttyACM0
-```
-
-Inside the client:
-
-```
-hw status
-hw version
-```
-
-**Capture the `hw version` output** — it confirms the firmware matches the client and shows
-the platform, before touching any cards.
-
-## 6. First real tests (once verified)
-
-- **LF:** place a known 125 kHz tag on the antenna, run `lf search`
-- **HF/NFC:** `hf search`, then MIFARE via `hf mf ...`
-- **UHF:** newer capability, thinner docs — tackle after LF/HF work
-- **Flipper pairing:** newest feature, least documented — do this last as its own step
-
-## Notes / reminders
-
-- Only read/write tags and cards you own or are explicitly authorized to test.
-- To resume with the assistant later: paste this file plus your `hw version` output into a
-  fresh session to get back up to speed.
+The original notes assumed PM5 = RDV4-compatible and built `PLATFORM=PM3RDV4`, then
+`PM3GENERIC` with `PLATFORM_SIZE=256`. Symptoms, in order: firmware "too big for your
+platform," `NACK (expected ACK)` lock errors, "bootloader does not understand CMD_BL_VERSION".
+Root cause: the images were for AT91SAM7 + Xilinx and the board is AT32F435 + GOWIN. The
+chip marking is what finally settled it.
 
 ## Sources
 
-- https://proxmark.com/proxmark-news/proxmark5/
-- https://github.com/RfidResearchGroup/proxmark3
-- https://github.com/RfidResearchGroup/proxmark3/blob/master/doc/md/Installation_Instructions/Linux-Installation-Instructions.md
+- https://proxmark.com/proxmark-news/proxmark5/  (PM5: AT32F435 + GOWIN FPGA)
+- https://proxmark5.com/
+- https://github.com/RfidResearchGroup/proxmark3  (legacy AT91SAM7 firmware — NOT for PM5)
+- Artery AT32F435 datasheet — Cortex-M4, up to 288 MHz, up to ~1 MB flash
