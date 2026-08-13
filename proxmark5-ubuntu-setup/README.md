@@ -28,21 +28,55 @@ Updated 2026-08-11 after hands-on setup on Ubuntu 26.04.
 - `lsusb` shows `9ac4:4b8f ... ProxMark-3 RFID Instrument` for all of them (shared USB ID),
   so that alone does **not** distinguish models.
 
-## Getting the correct PM5 software
+## The correct PM5 procedure (community-proven, Aug 2026)
 
-The PM5 ships with working factory firmware, so to start you mainly need the **matching PM5
-client** — then connect and use it. Sources (reachable from a normal network; the notes
-above were written where these domains were blocked):
+The PM5 firmware/client lives on a **dedicated branch**, not stock RRG master. The PM5 doc
+states it plainly: *"Only the client and firmware of this PR can support PM5. Please do not
+use the client and firmware from the master branch to flash PM5."*
 
-- **Hacker Warehouse** product page / knowledgebase / support (if that's your reseller) —
-  they ship the device and have the exact procedure.
-- **proxmark.com/proxmark-news/proxmark5/** and **proxmark5.com** — official PM5 pages with
-  firmware/client downloads and instructions.
-- **github.com/RfidResearchGroup** — look for a PM5-specific repository or branch (the
-  default `proxmark3` repo is the legacy AT91SAM7 codebase, not the PM5 one).
+**Source:** `github.com/xianglin1998/proxmark3`, the **`proxmark5` branch**.
 
-When switching or updating firmware on the PM5, follow the vendor's PM5 procedure — not the
-Proxmark3 `pm3-flash-all` flow in the old notes.
+> **⚠️ Remove the WiFi/Bluetooth/battery add-on (BWM) before flashing.** The PM5↔BWM
+> communication driver is still on the TODO list; the add-on causes flashing/UART issues.
+> Flash the bare board.
+
+```bash
+git clone https://github.com/xianglin1998/proxmark3.git
+cd proxmark3
+git checkout proxmark5
+cp Makefile.platform.sample Makefile.platform
+echo 'PLATFORM=PM5' > Makefile.platform      # PM5 target, not PM3RDV4
+make clean && make -j"$(nproc)"              # builds firmware + client
+```
+If the `armsrc` (firmware) build errors, the PM5 doc notes armsrc may require **cmake**
+while the client builds via make; the make path worked for the community as of 2026-08-11,
+so try it first.
+
+**Enter FLASH MODE:**
+1. Unplug. Press and hold the button.
+2. Plug into the USB-C port **next to the button / ABCD LEDs** (the client port — NOT the
+   CEP / F0 expansion port).
+3. Keep holding ~3 s until **LED_B and LED_D** light up together, then release.
+
+**Flash both stages (bootrom alone is not enough):**
+```bash
+./pm3-flash-all          # bootrom + fullimage
+./pm3
+```
+Inside the client:
+```
+hw version               # client<->firmware now match; shows AT32F435 + GOWIN
+hw tune                  # antenna health (LF 125 kHz + HF 13.56 MHz voltages)
+lf search                # 125 kHz tag on the antenna
+hf search                # 13.56 MHz card on the antenna
+```
+
+- `Permitted flash range: 0x08000000-0x08100000` is **informational, not an error** — it's
+  the Cortex-M flash base (0x08000000) spanning 1 MB, matching the AT32F435RG.
+- **Recovery:** if a bootrom flash fails, hold the button **6-8 s** to enter **ISP mode**
+  (the un-brick path).
+- **WiFi/BT will not work yet** — that integration is unfinished. LF/HF are faster than the
+  PM3 (GOWIN FPGA has built-in flash, so no runtime FPGA load).
 
 ---
 
@@ -85,7 +119,8 @@ chip marking is what finally settled it.
 
 ## Sources
 
+- https://github.com/xianglin1998/proxmark3/tree/proxmark5  (PM5 firmware/client branch)
+- https://github.com/xianglin1998/proxmark3/blob/proxmark5/doc/md/Development/Proxmark5.md  (PM5 dev/flash doc)
 - https://proxmark.com/proxmark-news/proxmark5/  (PM5: AT32F435 + GOWIN FPGA)
-- https://proxmark5.com/
 - https://github.com/RfidResearchGroup/proxmark3  (legacy AT91SAM7 firmware — NOT for PM5)
-- Artery AT32F435 datasheet — Cortex-M4, up to 288 MHz, up to ~1 MB flash
+- Artery AT32F435 datasheet — Cortex-M4, up to 288 MHz, 1 MB flash (RG), flash base 0x08000000
