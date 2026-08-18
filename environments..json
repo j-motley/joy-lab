@@ -1,0 +1,428 @@
+{
+  "_notes": [
+    "XLAPS deployment manifest - MOCK EXAMPLE that runs against deploy.ps1 as-is.",
+    "Values prefixed MOCK- are placeholders: replace with real hostnames/safes/DB names before live use.",
+    "Values WITHOUT the MOCK- prefix (add-in shares, NetApp model shares, Artifactory) are believed real, from the deployment doc - verify.",
+    "Structure assumptions to verify: dev1-4 share one app server, test* share another, UAT group another; addin QA1 grouped with TEST; modelShare subfolder convention <ENV>\\Models.",
+    "The {Env} token in component serverTargetPath is replaced with envName at runtime."
+  ],
+  "artifactory": {
+    "baseUrl": "https://artifactory.platform.axaxl-cloud.com/artifactory",
+    "repository": "xlcgtpran-xlaps-code-repository-and-pipelines-docker",
+    "application": "XLAPS-MPI"
+  },
+  "paths": {
+    "targetBasePath": "C:\\temp\\xlaps-mpi-deployment",
+    "sqlPackageExe": "C:\\Temp\\xlaps-mpi-deployment\\script\\sqlpackage\\sqlpackage.exe",
+    "xmlTransformDll": "C:\\Program Files\\Microsoft Visual Studio\\2022\\Professional\\MSBuild\\Microsoft\\VisualStudio\\v17.0\\Web\\Microsoft.Web.XmlTransform.dll"
+  },
+  "jumpServers": {
+    "default": "MOCK-JUMP01.R01.XLGS.LOCAL"
+  },
+  "databaseServers": {
+    "devtest": "MOCK-SQLDEVTEST01.ppprivmgmt.intraxa",
+    "qauat": "MOCK-SQLQAUAT01.prprivmgmt.intraxa"
+  },
+  "components": [
+    {
+      "name": "PricingAPI",
+      "appFolder": "PricingWeb",
+      "zipPath": "release\\_PublishedWebsites\\AXAXL.Pricing.XLAPS.API4.8",
+      "serverTargetPath": "E:\\WebApps\\PricingWeb\\{Env}\\PricingAPI",
+      "configStrategy": "renamePreTransformed",
+      "healthCheckUrl": null
+    },
+    {
+      "name": "PricingMicroServices",
+      "appFolder": "PricingWeb",
+      "zipPath": "release\\_PublishedWebsites\\AXAXL.Pricing.XLAPS.Services",
+      "serverTargetPath": "E:\\WebApps\\PricingWeb\\{Env}\\PricingMicroServices",
+      "configStrategy": "renamePreTransformed",
+      "healthCheckUrl": null
+    },
+    {
+      "name": "PricingAdminUI",
+      "appFolder": "PricingWeb",
+      "zipPath": "release\\_PublishedWebsites\\AXAXL.Pricing.XLAPS.AdminUI",
+      "serverTargetPath": "E:\\WebApps\\PricingWeb\\{Env}\\PricingAdminUI",
+      "configStrategy": "xdtTransform",
+      "healthCheckUrl": null
+    },
+    {
+      "name": "PricingService",
+      "appFolder": "PricingServices",
+      "zipPath": "release\\_PublishedWebsites\\AXAXL.Pricing.XLAPS.WCFServices",
+      "serverTargetPath": "E:\\WebApps\\PricingServices\\{Env}\\PricingService",
+      "configStrategy": "renamePreTransformed",
+      "healthCheckUrl": null
+    },
+    {
+      "name": "Addin0365",
+      "appFolder": null,
+      "zipPath": "Addin0365",
+      "deployVia": "addinShares",
+      "configStrategy": "none"
+    }
+  ],
+  "environments": {
+    "dev1": {
+      "envName": "Dev1",
+      "appServers": [
+        {
+          "host": "MOCK-R01-VATAMSPP0011.R01.XLGS.LOCAL",
+          "access": "direct",
+          "cyberArkSafe": "MOCK-XLAPS-NonProd-DevTest",
+          "cyberArkAccount": "MOCK-svc-xlaps-deploy"
+        }
+      ],
+      "addin": {
+        "access": "jump",
+        "shares": [
+          "\\\\R01-VATAMSX0022.R01.XLGS.LOCAL\\XLAPS\\Dev1",
+          "\\\\R01-VATAMSX0025.R01.XLGS.LOCAL\\XLAPS\\Dev1"
+        ]
+      },
+      "modelShare": "\\\\zdnxla5006.ppprivmgmt.intraxa\\xlapdv0001\\PricingDEV\\DEV1\\Models",
+      "database": {
+        "serverRef": "devtest",
+        "databaseName": "MOCK-PricingDB_Dev1",
+        "publishProfile": "PublishProfiles\\XLAPS-Dev1.publish.xml"
+      }
+    },
+    "dev2": {
+      "envName": "Dev2",
+      "appServers": [
+        {
+          "host": "MOCK-R01-VATAMSPP0011.R01.XLGS.LOCAL",
+          "access": "direct",
+          "cyberArkSafe": "MOCK-XLAPS-NonProd-DevTest",
+          "cyberArkAccount": "MOCK-svc-xlaps-deploy"
+        }
+      ],
+      "addin": {
+        "access": "jump",
+        "shares": [
+          "\\\\R01-VATAMSX0022.R01.XLGS.LOCAL\\XLAPS\\Dev2",
+          "\\\\R01-VATAMSX0025.R01.XLGS.LOCAL\\XLAPS\\Dev2"
+        ]
+      },
+      "modelShare": "\\\\zdnxla5006.ppprivmgmt.intraxa\\xlapdv0001\\PricingDEV\\DEV2\\Models",
+      "database": {
+        "serverRef": "devtest",
+        "databaseName": "MOCK-PricingDB_Dev2",
+        "publishProfile": "PublishProfiles\\XLAPS-Dev2.publish.xml"
+      }
+    },
+    "dev3": {
+      "envName": "Dev3",
+      "appServers": [
+        {
+          "host": "MOCK-R01-VATAMSPP0011.R01.XLGS.LOCAL",
+          "access": "direct",
+          "cyberArkSafe": "MOCK-XLAPS-NonProd-DevTest",
+          "cyberArkAccount": "MOCK-svc-xlaps-deploy"
+        }
+      ],
+      "addin": {
+        "access": "jump",
+        "shares": [
+          "\\\\R01-VATAMSX0022.R01.XLGS.LOCAL\\XLAPS\\Dev3",
+          "\\\\R01-VATAMSX0025.R01.XLGS.LOCAL\\XLAPS\\Dev3"
+        ]
+      },
+      "modelShare": "\\\\zdnxla5006.ppprivmgmt.intraxa\\xlapdv0001\\PricingDEV\\DEV3\\Models",
+      "database": {
+        "serverRef": "devtest",
+        "databaseName": "MOCK-PricingDB_Dev3",
+        "publishProfile": "PublishProfiles\\XLAPS-Dev3.publish.xml"
+      }
+    },
+    "dev4": {
+      "envName": "Dev4",
+      "appServers": [
+        {
+          "host": "MOCK-R01-VATAMSPP0011.R01.XLGS.LOCAL",
+          "access": "direct",
+          "cyberArkSafe": "MOCK-XLAPS-NonProd-DevTest",
+          "cyberArkAccount": "MOCK-svc-xlaps-deploy"
+        }
+      ],
+      "addin": {
+        "access": "jump",
+        "shares": [
+          "\\\\R01-VATAMSX0022.R01.XLGS.LOCAL\\XLAPS\\Dev4",
+          "\\\\R01-VATAMSX0025.R01.XLGS.LOCAL\\XLAPS\\Dev4"
+        ]
+      },
+      "modelShare": "\\\\zdnxla5006.ppprivmgmt.intraxa\\xlapdv0001\\PricingDEV\\DEV4\\Models",
+      "database": {
+        "serverRef": "devtest",
+        "databaseName": "MOCK-PricingDB_Dev4",
+        "publishProfile": "PublishProfiles\\XLAPS-Dev4.publish.xml"
+      }
+    },
+    "test1": {
+      "envName": "Test1",
+      "appServers": [
+        {
+          "host": "MOCK-R01-VATAMSPP0012.R01.XLGS.LOCAL",
+          "access": "direct",
+          "cyberArkSafe": "MOCK-XLAPS-NonProd-DevTest",
+          "cyberArkAccount": "MOCK-svc-xlaps-deploy"
+        }
+      ],
+      "addin": {
+        "access": "jump",
+        "shares": [
+          "\\\\R01-VATAMSX0024.R01.XLGS.LOCAL\\XLAPS\\Test1",
+          "\\\\R01-VATAMSX0026.R01.XLGS.LOCAL\\XLAPS\\Test1"
+        ]
+      },
+      "modelShare": "\\\\zdnxla5006.ppprivmgmt.intraxa\\xlapdv0003\\PricingTEST\\TEST1\\Models",
+      "database": {
+        "serverRef": "devtest",
+        "databaseName": "MOCK-PricingDB_Test1",
+        "publishProfile": "PublishProfiles\\XLAPS-Test1.publish.xml"
+      }
+    },
+    "test2": {
+      "envName": "Test2",
+      "appServers": [
+        {
+          "host": "MOCK-R01-VATAMSPP0012.R01.XLGS.LOCAL",
+          "access": "direct",
+          "cyberArkSafe": "MOCK-XLAPS-NonProd-DevTest",
+          "cyberArkAccount": "MOCK-svc-xlaps-deploy"
+        }
+      ],
+      "addin": {
+        "access": "jump",
+        "shares": [
+          "\\\\R01-VATAMSX0024.R01.XLGS.LOCAL\\XLAPS\\Test2",
+          "\\\\R01-VATAMSX0026.R01.XLGS.LOCAL\\XLAPS\\Test2"
+        ]
+      },
+      "modelShare": "\\\\zdnxla5006.ppprivmgmt.intraxa\\xlapdv0003\\PricingTEST\\TEST2\\Models",
+      "database": {
+        "serverRef": "devtest",
+        "databaseName": "MOCK-PricingDB_Test2",
+        "publishProfile": "PublishProfiles\\XLAPS-Test2.publish.xml"
+      }
+    },
+    "test2b": {
+      "envName": "Test2B",
+      "appServers": [
+        {
+          "host": "MOCK-R01-VATAMSPP0012.R01.XLGS.LOCAL",
+          "access": "direct",
+          "cyberArkSafe": "MOCK-XLAPS-NonProd-DevTest",
+          "cyberArkAccount": "MOCK-svc-xlaps-deploy"
+        }
+      ],
+      "addin": {
+        "access": "jump",
+        "shares": [
+          "\\\\R01-VATAMSX0024.R01.XLGS.LOCAL\\XLAPS\\Test2B",
+          "\\\\R01-VATAMSX0026.R01.XLGS.LOCAL\\XLAPS\\Test2B"
+        ]
+      },
+      "modelShare": "\\\\zdnxla5006.ppprivmgmt.intraxa\\xlapdv0003\\PricingTEST\\TEST2B\\Models",
+      "database": {
+        "serverRef": "devtest",
+        "databaseName": "MOCK-PricingDB_Test2B",
+        "publishProfile": "PublishProfiles\\XLAPS-Test2B.publish.xml"
+      }
+    },
+    "test3": {
+      "envName": "Test3",
+      "appServers": [
+        {
+          "host": "MOCK-R01-VATAMSPP0012.R01.XLGS.LOCAL",
+          "access": "direct",
+          "cyberArkSafe": "MOCK-XLAPS-NonProd-DevTest",
+          "cyberArkAccount": "MOCK-svc-xlaps-deploy"
+        }
+      ],
+      "addin": {
+        "access": "jump",
+        "shares": [
+          "\\\\R01-VATAMSX0024.R01.XLGS.LOCAL\\XLAPS\\Test3",
+          "\\\\R01-VATAMSX0026.R01.XLGS.LOCAL\\XLAPS\\Test3"
+        ]
+      },
+      "modelShare": "\\\\zdnxla5006.ppprivmgmt.intraxa\\xlapdv0003\\PricingTEST\\TEST3\\Models",
+      "database": {
+        "serverRef": "devtest",
+        "databaseName": "MOCK-PricingDB_Test3",
+        "publishProfile": "PublishProfiles\\XLAPS-Test3.publish.xml"
+      }
+    },
+    "test4": {
+      "envName": "Test4",
+      "appServers": [
+        {
+          "host": "MOCK-R01-VATAMSPP0012.R01.XLGS.LOCAL",
+          "access": "direct",
+          "cyberArkSafe": "MOCK-XLAPS-NonProd-DevTest",
+          "cyberArkAccount": "MOCK-svc-xlaps-deploy"
+        }
+      ],
+      "addin": {
+        "access": "jump",
+        "shares": [
+          "\\\\R01-VATAMSX0024.R01.XLGS.LOCAL\\XLAPS\\Test4",
+          "\\\\R01-VATAMSX0026.R01.XLGS.LOCAL\\XLAPS\\Test4"
+        ]
+      },
+      "modelShare": "\\\\zdnxla5006.ppprivmgmt.intraxa\\xlapdv0003\\PricingTEST\\TEST4\\Models",
+      "database": {
+        "serverRef": "devtest",
+        "databaseName": "MOCK-PricingDB_Test4",
+        "publishProfile": "PublishProfiles\\XLAPS-Test4.publish.xml"
+      }
+    },
+    "qa1": {
+      "envName": "QA1",
+      "appServers": [
+        {
+          "host": "MOCK-R01-VATAMSPP0013.R01.XLGS.LOCAL",
+          "access": "direct",
+          "cyberArkSafe": "MOCK-XLAPS-NonProd-DevTest",
+          "cyberArkAccount": "MOCK-svc-xlaps-deploy"
+        }
+      ],
+      "addin": {
+        "access": "jump",
+        "shares": [
+          "\\\\R01-VATAMSX0024.R01.XLGS.LOCAL\\XLAPS\\QA1",
+          "\\\\R01-VATAMSX0026.R01.XLGS.LOCAL\\XLAPS\\QA1"
+        ]
+      },
+      "modelShare": "\\\\zdnxla5006.ppprivmgmt.intraxa\\xlapdv0003\\PricingTEST\\QA1\\Models",
+      "database": {
+        "serverRef": "devtest",
+        "databaseName": "MOCK-PricingDB_QA1",
+        "publishProfile": "PublishProfiles\\XLAPS-QA1.publish.xml"
+      }
+    },
+    "uat": {
+      "envName": "UAT",
+      "appServers": [
+        {
+          "host": "MOCK-R01-VATAMSPP0014.R01.XLGS.LOCAL",
+          "access": "direct",
+          "cyberArkSafe": "MOCK-XLAPS-NonProd-UAT",
+          "cyberArkAccount": "MOCK-svc-xlaps-deploy"
+        }
+      ],
+      "addin": {
+        "access": "jump",
+        "shares": [
+          "\\\\R01-VATAMSX0028.R01.XLGS.LOCAL\\XLAPS\\UAT",
+          "\\\\R01-VATAMSX0029.R01.XLGS.LOCAL\\XLAPS\\UAT"
+        ]
+      },
+      "modelShare": "\\\\zqnxla5006.prprivmgmt.intraxa\\xlappp0001\\PricingUAT\\UAT\\Models",
+      "database": {
+        "serverRef": "qauat",
+        "databaseName": "MOCK-PricingDB_UAT",
+        "publishProfile": "PublishProfiles\\XLAPS-UAT.publish.xml"
+      }
+    },
+    "uat2": {
+      "envName": "UAT2",
+      "appServers": [
+        {
+          "host": "MOCK-R01-VATAMSPP0014.R01.XLGS.LOCAL",
+          "access": "direct",
+          "cyberArkSafe": "MOCK-XLAPS-NonProd-UAT",
+          "cyberArkAccount": "MOCK-svc-xlaps-deploy"
+        }
+      ],
+      "addin": {
+        "access": "jump",
+        "shares": [
+          "\\\\R01-VATAMSX0028.R01.XLGS.LOCAL\\XLAPS\\UAT2",
+          "\\\\R01-VATAMSX0029.R01.XLGS.LOCAL\\XLAPS\\UAT2"
+        ]
+      },
+      "modelShare": "\\\\zqnxla5006.prprivmgmt.intraxa\\xlappp0001\\PricingUAT\\UAT2\\Models",
+      "database": {
+        "serverRef": "qauat",
+        "databaseName": "MOCK-PricingDB_UAT2",
+        "publishProfile": "PublishProfiles\\XLAPS-UAT2.publish.xml"
+      }
+    },
+    "odc": {
+      "envName": "ODC",
+      "appServers": [
+        {
+          "host": "MOCK-R01-VATAMSPP0014.R01.XLGS.LOCAL",
+          "access": "direct",
+          "cyberArkSafe": "MOCK-XLAPS-NonProd-UAT",
+          "cyberArkAccount": "MOCK-svc-xlaps-deploy"
+        }
+      ],
+      "addin": {
+        "access": "jump",
+        "shares": [
+          "\\\\R01-VATAMSX0028.R01.XLGS.LOCAL\\XLAPS\\ODC",
+          "\\\\R01-VATAMSX0029.R01.XLGS.LOCAL\\XLAPS\\ODC"
+        ]
+      },
+      "modelShare": "\\\\zqnxla5006.prprivmgmt.intraxa\\xlappp0001\\PricingUAT\\ODC\\Models",
+      "database": {
+        "serverRef": "qauat",
+        "databaseName": "MOCK-PricingDB_ODC",
+        "publishProfile": "PublishProfiles\\XLAPS-ODC.publish.xml"
+      }
+    },
+    "copylive": {
+      "envName": "CopyLive",
+      "appServers": [
+        {
+          "host": "MOCK-R01-VATAMSPP0014.R01.XLGS.LOCAL",
+          "access": "direct",
+          "cyberArkSafe": "MOCK-XLAPS-NonProd-UAT",
+          "cyberArkAccount": "MOCK-svc-xlaps-deploy"
+        }
+      ],
+      "addin": {
+        "access": "jump",
+        "shares": [
+          "\\\\R01-VATAMSX0028.R01.XLGS.LOCAL\\XLAPS\\CopyLive",
+          "\\\\R01-VATAMSX0029.R01.XLGS.LOCAL\\XLAPS\\CopyLive"
+        ]
+      },
+      "modelShare": "\\\\zqnxla5006.prprivmgmt.intraxa\\xlappp0001\\PricingUAT\\COPYLIVE\\Models",
+      "database": {
+        "serverRef": "qauat",
+        "databaseName": "MOCK-PricingDB_CopyLive",
+        "publishProfile": "PublishProfiles\\XLAPS-CopyLive.publish.xml"
+      }
+    },
+    "etm": {
+      "envName": "ETM",
+      "appServers": [
+        {
+          "host": "MOCK-R01-VATAMSPP0015.R01.XLGS.LOCAL",
+          "access": "direct",
+          "cyberArkSafe": "MOCK-XLAPS-NonProd-DevTest",
+          "cyberArkAccount": "MOCK-svc-xlaps-deploy"
+        }
+      ],
+      "addin": {
+        "access": "jump",
+        "shares": [
+          "\\\\R01-VATAMSX0023.R01.XLGS.LOCAL\\XLAPS\\ETM"
+        ]
+      },
+      "modelShare": "\\\\zdnxla5006.ppprivmgmt.intraxa\\xlapdv0003\\PricingTEST\\ETM\\Models",
+      "database": {
+        "serverRef": "devtest",
+        "databaseName": "MOCK-PricingDB_ETM",
+        "publishProfile": "PublishProfiles\\XLAPS-ETM.publish.xml"
+      }
+    }
+  }
+}
