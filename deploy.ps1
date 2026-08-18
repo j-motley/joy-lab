@@ -1,67 +1,69 @@
 <#
-
 .EXAMPLE
     .\deploy.ps1 -Environment dev1 -DryRun
     .\deploy.ps1 -Environment test1
     .\deploy.ps1 -Environment uat -BuildFile NEW_XLAPS_Release_Application-Build-2026-08-13-68.zip
     .\deploy.ps1 -Environment dev1 -Only Database -DbMode Report
+
 #>
- 
+
 [CmdletBinding()]
 param(
     # Target environment(s), e.g. -Environment dev1  or  -Environment dev1,test1,uat
     # With multiple environments, each one gets a Proceed/skip/quit gate before its work starts.
     # (Required for deployments; not needed with -SetupToken.)
     [string[]]$Environment,
- 
+
     # Application build zip name. If omitted, newest NEW_XLAPS_*Application-Build-*.zip
     # in today's date folder is offered for confirmation.
     [string]$BuildFile,
- 
-    [string]$ManifestPath = (Join-Path $PSScriptRoot 'environments.json'),
- 
+
+    # Path to the environment manifest. If omitted, the script looks in its own folder
+    # for JSON files with the right structure and asks which to use if several match.
+    [string]$ManifestPath,
+
     # Limit the run: any of WebComponents, Addin, Models, Database. Default: all.
     [ValidateSet('WebComponents','Addin','Models','Database')]
     [string[]]$Only = @('WebComponents','Addin','Models','Database'),
- 
+
     # Database mode: Script (generate SQL, current team practice), Report (harmless
     # what-would-change preview), Publish (direct deploy - the original automated way).
     [ValidateSet('Script','Report','Publish')]
     [string]$DbMode = 'Script',
- 
+
     # Folder containing PricingSystems.Database.dacpac + PublishProfiles\ for this deploy.
     # If omitted, newest PricingDB_*_Build-* folder under targetBasePath is offered.
     [string]$DbBuildFolder,
- 
+
     # Folder containing the extracted model build output. Models are skipped if omitted.
     [string]$ModelBuildFolder,
- 
+
     # Download the build zip from Artifactory instead of expecting it in the date folder.
     # Requires -BuildFile (the exact zip name). Auth: pass -ArtifactoryToken, or set the
     # ARTIFACTORY_TOKEN environment variable; omitted = anonymous request.
     [switch]$Download,
- 
+
     [string]$ArtifactoryToken,
- 
+
     # One-time (per user/machine) token setup: opens your browser at the Artifactory
     # profile page, you generate an identity token, paste it once, and it is stored
     # DPAPI-encrypted for all future -Download runs. Run again anytime to replace it.
     [switch]$SetupToken,
- 
+
     # Walk through the deployment one logical step at a time:
     # each step is announced and waits for [Y]es / [s]kip / [q]uit.
     [switch]$Guided,
- 
+
     [switch]$DryRun
 )
- 
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
- 
+
 # ---------------------------------------------------------------- helpers ----
- 
+
 $script:Results = New-Object System.Collections.Generic.List[object]
- 
+
 function Add-Result {
     param([string]$Step, [string]$Target, [string]$Status, [string]$Detail = '')
     $script:Results.Add([pscustomobject]@{ Step = $Step; Target = $Target; Status = $Status; Detail = $Detail })
@@ -74,7 +76,7 @@ function Add-Result {
     }
     Write-Host ("[{0,-7}] {1} -> {2}  {3}" -f $Status, $Step, $Target, $Detail) -ForegroundColor $color
 }
- 
+
 function Confirm-Step {
     <# Guided-mode gate. Returns $true to run the step, $false to skip it.
        'q' aborts the whole run. When -Guided is not set, always returns $true. #>
@@ -94,28 +96,28 @@ function Confirm-Step {
         }
     }
 }
- 
+
 function Test-Todo { param([string]$Value)
     return ([string]::IsNullOrWhiteSpace($Value) -or $Value -like 'TODO*')
 }
- 
+
 function Resolve-EnvToken { param([string]$Template, [string]$EnvName)
     return $Template.Replace('{Env}', $EnvName)
 }
- 
+
 function Confirm-Choice { param([string]$Message)
     if ($DryRun) { return $true }
     $answer = Read-Host "$Message [y/N]"
     return ($answer -eq 'y' -or $answer -eq 'Y')
 }
- 
+
 function Copy-WithVerify {
     <# Copies Source\* to Destination recursively, then compares file counts.
        Returns $true on verified copy. #>
     param([string]$Source, [string]$Destination, [string]$Label)
- 
+
     if ($DryRun) { Add-Result 'Copy' $Label 'DRYRUN' "$Source -> $Destination"; return $true }
- 
+
     if (-not (Test-Path -LiteralPath $Source -PathType Container)) {
         throw "Source path does not exist: $Source"
     }
@@ -123,7 +125,7 @@ function Copy-WithVerify {
         New-Item -Path $Destination -ItemType Directory -Force | Out-Null
     }
     Copy-Item -Path (Join-Path $Source '*') -Destination $Destination -Recurse -Force
- 
+
     $srcCount = (Get-ChildItem -LiteralPath $Source -Recurse -File | Measure-Object).Count
     $dstCount = (Get-ChildItem -LiteralPath $Destination -Recurse -File | Measure-Object).Count
     if ($dstCount -lt $srcCount) {
@@ -131,11 +133,11 @@ function Copy-WithVerify {
     }
     return $true
 }
- 
+
 function Get-TokenFilePath {
     return (Join-Path $env:USERPROFILE '.xlaps\artifactory.token.xml')
 }
- 
+
 function Get-StoredArtifactoryToken {
     <# Returns the stored token as plain text, or $null if none is saved.
        The file is DPAPI-encrypted: only this user on this machine can decrypt it. #>
@@ -152,13 +154,13 @@ function Get-StoredArtifactoryToken {
         return $null
     }
 }
- 
+
 function Invoke-TokenSetup {
     param($Artifactory)
- 
+
     $uiBase = $Artifactory.baseUrl -replace '/artifactory/?$', ''
     $profileUrl = "$uiBase/ui/user_profile"
- 
+
     Write-Host ""
     Write-Host "=== Artifactory token setup ===" -ForegroundColor White
     Write-Host "Your browser will now open to your Artifactory profile page."
@@ -168,10 +170,10 @@ function Invoke-TokenSetup {
     Write-Host "     (If there is no generate option, ask the Artifactory admins for a token.)"
     Write-Host ""
     Start-Process $profileUrl
- 
+
     $secure = Read-Host -Prompt "Paste the identity token (input is hidden)" -AsSecureString
     if ($secure.Length -eq 0) { throw "No token entered - nothing saved." }
- 
+
     # Optional validation: try an authenticated ping before saving.
     $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
     try { $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
@@ -185,7 +187,7 @@ function Invoke-TokenSetup {
         Write-Warning "Could not verify the token against $($Artifactory.baseUrl) ($($_.Exception.Message)). Saving it anyway - if downloads fail, re-run -SetupToken."
     }
     finally { $plain = $null }
- 
+
     $tokenFile = Get-TokenFilePath
     $tokenDir = Split-Path $tokenFile -Parent
     if (-not (Test-Path -LiteralPath $tokenDir)) { New-Item -Path $tokenDir -ItemType Directory -Force | Out-Null }
@@ -193,7 +195,7 @@ function Invoke-TokenSetup {
     Write-Host "Token saved (encrypted for this user on this machine): $tokenFile" -ForegroundColor Green
     Write-Host "You won't be asked again on this machine. Future runs of 'deploy.ps1 -Download' will use it automatically."
 }
- 
+
 function Write-BuildStamp {
     param([string]$Destination, [hashtable]$Info)
     if ($DryRun) { return }
@@ -201,14 +203,52 @@ function Write-BuildStamp {
     $Info['deployedBy']    = $env:USERNAME
     ($Info | ConvertTo-Json) | Set-Content -LiteralPath (Join-Path $Destination 'deployed.buildinfo.json') -Encoding UTF8
 }
- 
+
 # ---------------------------------------------------------- load manifest ----
- 
+
+# ---- manifest discovery: no fixed filename required ----
+if (-not $ManifestPath) {
+    $searchDir = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
+    $candidates = @(Get-ChildItem -LiteralPath $searchDir -Filter '*.json' -File -ErrorAction SilentlyContinue |
+        Where-Object {
+            try {
+                $j = Get-Content -LiteralPath $_.FullName -Raw | ConvertFrom-Json
+                ($null -ne $j.PSObject.Properties['environments']) -and ($null -ne $j.PSObject.Properties['components'])
+            } catch { $false }
+        })
+
+    if ($candidates.Count -eq 0) {
+        throw "No deployment manifest found in $searchDir. Place a manifest JSON (any name; must contain 'environments' and 'components' sections) next to deploy.ps1, or pass -ManifestPath."
+    }
+    elseif ($candidates.Count -eq 1) {
+        $ManifestPath = $candidates[0].FullName
+        Write-Host "Using manifest: $($candidates[0].Name)" -ForegroundColor DarkGray
+    }
+    else {
+        Write-Host ""
+        Write-Host "Multiple manifest files found in ${searchDir}:" -ForegroundColor White
+        for ($i = 0; $i -lt $candidates.Count; $i++) {
+            $raw = Get-Content -LiteralPath $candidates[$i].FullName -Raw
+            $envCount = (($raw | ConvertFrom-Json).environments.PSObject.Properties.Name | Where-Object { $_ -notlike '_*' }).Count
+            $mockFlag = if ($raw -match 'MOCK-') { '  (contains MOCK values)' } else { '' }
+            Write-Host ("  [{0}] {1}  - {2} environments{3}" -f ($i + 1), $candidates[$i].Name, $envCount, $mockFlag)
+        }
+        while ($true) {
+            $pick = Read-Host "Which manifest? [1-$($candidates.Count)]"
+            if ($pick -match '^\d+$' -and [int]$pick -ge 1 -and [int]$pick -le $candidates.Count) {
+                $ManifestPath = $candidates[[int]$pick - 1].FullName
+                break
+            }
+            Write-Host "Please enter a number between 1 and $($candidates.Count)." -ForegroundColor Yellow
+        }
+    }
+}
+
 if (-not (Test-Path -LiteralPath $ManifestPath)) {
-    throw "Manifest not found: $ManifestPath  (copy environments.example.json to environments.json and fill it in)"
+    throw "Manifest not found: $ManifestPath"
 }
 $manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
- 
+
 # ---- one-time token setup mode: run and exit ----
 if ($SetupToken) {
     Invoke-TokenSetup -Artifactory $manifest.artifactory
@@ -217,7 +257,7 @@ if ($SetupToken) {
 if (-not $Environment) {
     throw "-Environment is required (or use -SetupToken for first-time Artifactory token setup)."
 }
- 
+
 # Environment lookup - case-insensitive key match; ANY unknown name ABORTS before any work.
 $envKeys = @()
 $requestedList = @($Environment -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
@@ -233,18 +273,18 @@ foreach ($requested in $requestedList) {
 }
 $envLabel = $envKeys -join '+'
 $script:StagedFinal = @{}   # components staged to final-output this run (stage once, reuse per environment)
- 
+
 # ------------------------------------------------------------- run set-up ----
- 
+
 $targetBasePath = $manifest.paths.targetBasePath
 $currentDate    = (Get-Date).ToString('yyyy-MM-dd')
 $targetPath     = Join-Path $targetBasePath $currentDate
- 
+
 $logDir = Join-Path $targetBasePath 'logs'
 if (-not (Test-Path $logDir)) { New-Item -Path $logDir -ItemType Directory -Force | Out-Null }
 $logFile = Join-Path $logDir ("deploy-{0}-{1}.log" -f $envLabel, (Get-Date).ToString('yyyyMMdd-HHmmss'))
 Start-Transcript -Path $logFile | Out-Null
- 
+
 try {
     Write-Host ""
     Write-Host "=== XLAPS deploy ===" -ForegroundColor White
@@ -254,17 +294,17 @@ try {
     Write-Host "Manifest    : $ManifestPath"
     Write-Host "Log         : $logFile"
     Write-Host ""
- 
+
     # ------------------------------------------------ resolve the app build ----
- 
+
     $needsAppBuild = ($Only -contains 'WebComponents' -or $Only -contains 'Addin')
     $stagePath = $null
- 
+
     if ($needsAppBuild) {
         if (-not (Test-Path -LiteralPath $targetPath)) {
             New-Item -Path $targetPath -ItemType Directory -Force | Out-Null
         }
- 
+
         # ---- optional: download from Artifactory (replaces script 1's download branch) ----
         if ($Download -and (Confirm-Step 'Download build from Artifactory' "Fetch $BuildFile into $targetPath")) {
             if (-not $BuildFile) { throw "-Download requires -BuildFile (the exact zip name to fetch)." }
@@ -272,14 +312,14 @@ try {
             $buildFolder = $Matches[1]
             $a = $manifest.artifactory
             $downloadUrl = "$($a.baseUrl)/$($a.repository)/$($a.application)/$buildFolder/$BuildFile"
- 
+
             $headers = @{}
             $token = if ($ArtifactoryToken) { $ArtifactoryToken }
                      elseif ($env:ARTIFACTORY_TOKEN) { $env:ARTIFACTORY_TOKEN }
                      else { Get-StoredArtifactoryToken }   # saved via -SetupToken
             if ($token) { $headers['Authorization'] = "Bearer $token" }
             else { Write-Warning "No Artifactory token found (no -ArtifactoryToken, no ARTIFACTORY_TOKEN env var, no stored token). Trying anonymous - run 'deploy.ps1 -SetupToken' if this fails." }
- 
+
             $downloadDest = Join-Path $targetPath $BuildFile
             if ($DryRun) {
                 Add-Result 'Download' $BuildFile 'DRYRUN' $downloadUrl
@@ -299,7 +339,7 @@ try {
                 Add-Result 'Download' $BuildFile 'OK' ("{0:N1} MB from Artifactory" -f ($dl.Length / 1MB))
             }
         }
- 
+
         if (-not $BuildFile) {
             $candidate = Get-ChildItem -LiteralPath $targetPath -Filter '*Application-Build-*.zip' -File |
                          Sort-Object LastWriteTime -Descending | Select-Object -First 1
@@ -313,7 +353,7 @@ try {
         }
         $buildZipPath = Join-Path $targetPath $BuildFile
         if (-not (Test-Path -LiteralPath $buildZipPath)) { throw "Build zip not found: $buildZipPath" }
- 
+
         # ---- extract once (replaces script 2's extract section) ----
         $stagePath = Join-Path (Join-Path $targetPath 'stage-output') 'Components'
         if (-not (Confirm-Step 'Extract build zip' "Unzip $BuildFile to stage-output (skip if already extracted earlier today)")) {
@@ -328,16 +368,16 @@ try {
             Add-Result 'Extract' $BuildFile 'OK' "-> $stagePath"
         }
     }
- 
+
     # ------------------------------------- stage + environment output loop ----
     # (replaces script 2's five copy-paste blocks and both script 3 functions)
- 
+
     function New-EnvironmentOutput {
         param($Component)
- 
+
         $finalOutputPath = Join-Path (Join-Path $targetPath 'final-output') $Component.name
         $sourceInZip     = Join-Path $stagePath $Component.zipPath
- 
+
         if ($script:StagedFinal.ContainsKey($Component.name)) {
             # already staged during this run (multi-environment) - reuse final-output as-is
         }
@@ -354,23 +394,23 @@ try {
             Add-Result 'Stage' $Component.name 'OK' $finalOutputPath
             $script:StagedFinal[$Component.name] = $true
         }
- 
+
         # Add-in has no per-environment config work; it deploys from final-output.
         if ($Component.configStrategy -eq 'none') { return $finalOutputPath }
- 
+
         $envOutputPath = Join-Path (Join-Path (Join-Path (Join-Path $targetPath 'environment-output') $Component.appFolder) $envName) $Component.name
- 
+
         if ($DryRun) {
             Add-Result 'EnvOutput' $Component.name 'DRYRUN' "$envOutputPath ($($Component.configStrategy))"
             return $envOutputPath
         }
- 
+
         if (Test-Path -LiteralPath $envOutputPath) { Remove-Item -LiteralPath $envOutputPath -Recurse -Force }
         New-Item -Path $envOutputPath -ItemType Directory -Force | Out-Null
         Copy-Item -Path (Join-Path $finalOutputPath '*') -Destination $envOutputPath -Recurse
- 
+
         switch ($Component.configStrategy) {
- 
+
             'renamePreTransformed' {
                 # Original behavior: remove Web.*, then Web.config.<Env> becomes Web.config.
                 Remove-Item -Path (Join-Path $envOutputPath 'Web.*') -Force
@@ -381,7 +421,7 @@ try {
                 Copy-Item -LiteralPath $envSpecific -Destination $envOutputPath
                 Rename-Item -LiteralPath (Join-Path $envOutputPath ("Web.config." + $envName)) -NewName 'Web.config' -Force
             }
- 
+
             'xdtTransform' {
                 # Original PricingAdminUI behavior - but transform failure now ABORTS.
                 Remove-Item -Path (Join-Path $envOutputPath 'Web.*') -Force
@@ -391,7 +431,7 @@ try {
                     throw "Missing XDT transform for $($Component.name): $transformSrc"
                 }
                 Copy-Item -LiteralPath $transformSrc -Destination $envOutputPath
- 
+
                 Add-Type -Path $manifest.paths.xmlTransformDll
                 $baseConfigFile = Join-Path $envOutputPath 'Web.config'
                 $doc = New-Object Microsoft.Web.XmlTransform.XmlTransformableDocument
@@ -404,46 +444,57 @@ try {
                 $doc.Save($baseConfigFile)
                 Remove-Item -LiteralPath (Join-Path $envOutputPath ("Web." + $envName + ".config")) -Force
             }
- 
+
             default { throw "Unknown configStrategy '$($Component.configStrategy)' for $($Component.name)" }
         }
- 
+
         Add-Result 'EnvOutput' $Component.name 'OK' $envOutputPath
         return $envOutputPath
     }
- 
+
     # ============================ per-environment loop ==========================
- 
+
     foreach ($envKey in $envKeys) {
         $envCfg  = $manifest.environments.$envKey
         $envName = $envCfg.envName
- 
+
         # Gate each environment when deploying to several (or in guided mode).
         if ($envKeys.Count -gt 1 -or $Guided) {
             if (-not (Confirm-Step -Always "Deploy to $envName" "Sections: $($Only -join ', ')")) { continue }
         }
- 
+
+        # Resolve this environment's jump server: per-zone via jumpServerRef,
+        # falling back to a flat 'default' entry for older manifests.
+        $jumpServer = '<jump server - not in manifest>'
+        if ($envCfg.PSObject.Properties['jumpServerRef'] -and
+            $manifest.jumpServers.PSObject.Properties[$envCfg.jumpServerRef]) {
+            $jumpServer = $manifest.jumpServers.($envCfg.jumpServerRef)
+        }
+        elseif ($manifest.jumpServers.PSObject.Properties['default']) {
+            $jumpServer = $manifest.jumpServers.default
+        }
+
     # ------------------------------------------------------- web components ----
- 
+
     if ($Only -contains 'WebComponents' -and (Confirm-Step 'Web components' "Stage, generate $envName environment output, and copy to app servers")) {
         $webComponents = @($manifest.components | Where-Object { $_.configStrategy -ne 'none' })
- 
+
         foreach ($comp in $webComponents) {
             $envOutputPath = New-EnvironmentOutput -Component $comp
- 
+
             foreach ($server in $envCfg.appServers) {
                 $targetOnServer = Resolve-EnvToken $comp.serverTargetPath $envName
                 $label = "$($comp.name) @ $($server.host)"
- 
+
                 if (Test-Todo $server.host) {
                     Add-Result 'DeployWeb' $comp.name 'MANUAL' "Manifest appServers.host is TODO. Copy $envOutputPath to <server>:$targetOnServer (CyberArk safe: $($server.cyberArkSafe))"
                     continue
                 }
                 if ($server.access -eq 'jump') {
-                    Add-Result 'DeployWeb' $label 'MANUAL' "Jump-server route. Copy $envOutputPath via $($manifest.jumpServers.default) to $targetOnServer"
+                    Add-Result 'DeployWeb' $label 'MANUAL' "Jump-server route. Copy $envOutputPath via $jumpServer to $targetOnServer"
                     continue
                 }
- 
+
                 # Direct: translate E:\WebApps\... to \\host\E$\WebApps\...
                 $unc = '\\' + $server.host + '\' + ($targetOnServer -replace '^([A-Za-z]):', '$1$')
                 if (-not (Confirm-Step "Copy $($comp.name) -> $($server.host)" $unc)) { continue }
@@ -458,20 +509,20 @@ try {
             }
         }
     }
- 
+
     # ---------------------------------------------------------------- addin ----
- 
+
     if ($Only -contains 'Addin' -and (Confirm-Step 'Add-in (Addin0365)' 'Stage the add-in and copy to OneSpace shares (jump-server routes report as manual)')) {
         $addinComp = $manifest.components | Where-Object { $_.name -eq 'Addin0365' }
         $addinSource = New-EnvironmentOutput -Component $addinComp
- 
+
         foreach ($share in $envCfg.addin.shares) {
             if (Test-Todo $share) {
                 Add-Result 'DeployAddin' $share 'MANUAL' 'Share value is TODO in manifest.'
                 continue
             }
             if ($envCfg.addin.access -eq 'jump') {
-                Add-Result 'DeployAddin' $share 'MANUAL' "Jump-server route: copy $addinSource via $($manifest.jumpServers.default) to $share"
+                Add-Result 'DeployAddin' $share 'MANUAL' "Jump-server route: copy $addinSource via $jumpServer to $share"
                 continue
             }
             try {
@@ -483,9 +534,9 @@ try {
             }
         }
     }
- 
+
     # --------------------------------------------------------------- models ----
- 
+
     if ($Only -contains 'Models' -and (Confirm-Step 'Models' "Copy model files to the $envName NetApp share")) {
         if (-not $ModelBuildFolder) {
             Add-Result 'DeployModels' $envName 'SKIPPED' 'Pass -ModelBuildFolder <extracted model build> to include models.'
@@ -503,9 +554,9 @@ try {
             }
         }
     }
- 
+
     # ------------------------------------------------------------- database ----
- 
+
     if ($Only -contains 'Database' -and (Confirm-Step 'Database' "sqlpackage /Action:$DbMode against $envName")) {
         if (-not $DbBuildFolder) {
             $dbCandidate = Get-ChildItem -LiteralPath $targetBasePath -Directory -Filter 'PricingDB_*_Build-*' -ErrorAction SilentlyContinue |
@@ -514,7 +565,7 @@ try {
                 $DbBuildFolder = $dbCandidate.FullName
             }
         }
- 
+
         if (-not $DbBuildFolder) {
             Add-Result 'Database' $envName 'SKIPPED' 'No DB build folder found/selected. Pass -DbBuildFolder to include the database.'
         }
@@ -523,10 +574,10 @@ try {
             $profileFile = Join-Path $DbBuildFolder (Resolve-EnvToken $envCfg.database.publishProfile $envName)
             if (-not (Test-Path -LiteralPath $dacpac))      { throw "dacpac not found: $dacpac" }
             if (-not (Test-Path -LiteralPath $profileFile)) { throw "publish profile not found: $profileFile" }
- 
+
             $sqlpackage = $manifest.paths.sqlPackageExe
             $dbArgs = @("/SourceFile:$dacpac", "/Profile:$profileFile")
- 
+
             # Manifest overrides beat whatever the profile says - this is the fix for
             # stale post-migration connection strings.
             $serverRef = $envCfg.database.serverRef
@@ -534,10 +585,10 @@ try {
             if ($serverRef -and -not (Test-Todo $serverRef)) { $dbServer = $manifest.databaseServers.$serverRef }
             if ($dbServer -and -not (Test-Todo $dbServer)) { $dbArgs += "/TargetServerName:$dbServer" }
             if (-not (Test-Todo $envCfg.database.databaseName)) { $dbArgs += "/TargetDatabaseName:$($envCfg.database.databaseName)" }
- 
+
             $dbScriptDir = Join-Path $targetBasePath 'dbscript'
             if (-not (Test-Path $dbScriptDir)) { New-Item -Path $dbScriptDir -ItemType Directory -Force | Out-Null }
- 
+
             switch ($DbMode) {
                 'Script'  { $outFile = Join-Path $dbScriptDir ("output-{0}-{1}.sql" -f $envKey, (Get-Date).ToString('yyyyMMdd-HHmmss'))
                             $dbArgs = @('/Action:Script',  "/OutputPath:$outFile") + $dbArgs }
@@ -546,7 +597,7 @@ try {
                 'Publish' { $outFile = $null
                             $dbArgs = @('/Action:Publish') + $dbArgs }
             }
- 
+
             if ($DryRun) {
                 Add-Result 'Database' "$envName ($DbMode)" 'DRYRUN' "$sqlpackage $($dbArgs -join ' ')"
             }
@@ -562,7 +613,7 @@ try {
                     }
                     else {
                         Add-Result 'Database' "$envName ($DbMode)" 'OK' "$outFile"
- 
+
                         # Script mode: also produce a clean file with the SQLCMD preamble
                         # stripped BY MARKER (never by line number), ready for SSMS.
                         if ($DbMode -eq 'Script' -and $outFile -and (Test-Path -LiteralPath $outFile)) {
@@ -583,7 +634,7 @@ try {
             }
         }
     }
- 
+
     }   # ======================== end per-environment loop ======================
 }
 finally {
